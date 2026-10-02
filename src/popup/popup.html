@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header class="head">
+    <div class="brand">
+      <span class="logo">B</span>
+      <div>
+        <strong>BlockFB</strong>
+        <span class="sub" id="status">loading…</span>
+      </div>
+    </div>
+    <label class="switch big" title="Turn every rule on or off">
+      <input type="checkbox" id="master" />
+      <span class="track"></span>
+    </label>
+  </header>
+
+  <button class="pick" id="pick">
+    <span class="pick-icon">⌖</span>
+    <span>
+      <b>Hide something by clicking it</b>
+      <em>Alt+Shift+H on any Facebook tab</em>
+    </span>
+  </button>
+
+  <nav class="tabs">
+    <button class="tab is-on" data-tab="presets">Blocks</button>
+    <button class="tab" data-tab="custom">Picked <span class="pill" id="customCount">0</span></button>
+    <button class="tab" data-tab="words">Words</button>
+  </nav>
+
+  <section class="panel is-on" data-panel="presets">
+    <input type="search" id="filter" class="filter" placeholder="Filter blocks…" />
+    <div id="presets"></div>
+  </section>
+
+  <section class="panel" data-panel="custom">
+    <div id="custom"></div>
+  </section>
+
+  <section class="panel" data-panel="words">
+    <div class="row rowtop">
+      <div class="row-text">
+        <b>Hide posts containing these words</b>
+        <em>One per line. Wrap in slashes for a regex: /crypto|nft/i</em>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="kwEnabled" />
+        <span class="track"></span>
+      </label>
+    </div>
+    <textarea id="kwTerms" spellcheck="false" placeholder="politics&#10;engagement&#10;/giveaway|sweepstake/i"></textarea>
+    <p class="note">Matched against the whole post, so keep words specific.</p>
+  </section>
+
+  <footer class="foot">
+    <button id="reset" class="link">Reset everything</button>
+    <span id="hidden" class="muted"></span>
+  </footer>
+
+  <script src="../common/presets.js"></script>
+  <script src="../common/storage.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
