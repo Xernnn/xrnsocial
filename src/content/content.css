@@ -1,0 +1,82 @@
+/* Styles for the picker overlay only. Nothing here touches the page unless
+ * the picker is running, so the stylesheet is harmless when idle. */
+
+.bfx-picking, .bfx-picking * { cursor: crosshair !important; }
+
+.bfx-picker-root {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483646;
+  pointer-events: none;
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.bfx-box {
+  position: fixed;
+  border: 2px solid #2d88ff;
+  background: rgba(45, 136, 255, 0.16);
+  border-radius: 6px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.18);
+  transition: top .06s ease, left .06s ease, width .06s ease, height .06s ease;
+  pointer-events: none;
+}
+
+.bfx-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  max-width: min(760px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #16181c;
+  color: #e7e9ea;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, .45);
+  pointer-events: none;
+}
+
+.bfx-bar-main { display: flex; align-items: center; gap: 8px; }
+.bfx-dot { width: 8px; height: 8px; border-radius: 50%; background: #2d88ff; flex: none; }
+.bfx-name { font-weight: 600; white-space: nowrap; }
+.bfx-sel {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  color: #8ab4f8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bfx-bar-hint { margin-top: 6px; font-size: 11.5px; color: #9aa0a6; }
+.bfx-bar-hint b {
+  color: #e7e9ea;
+  background: #2a2d33;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-weight: 600;
+}
+.bfx-warn:empty { display: none; }
+.bfx-warn {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid #2a2d33;
+  font-size: 11.5px;
+  color: #f7c948;
+}
+.bfx-warn[data-level="bad"] { color: #ff8080; }
+
+.bfx-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  padding: 11px 16px;
+  border-radius: 10px;
+  background: #16181c;
+  color: #e7e9ea;
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, .45);
+  opacity: 1;
+  transition: opacity .35s ease, transform .35s ease;
+}
+.bfx-toast-out { opacity: 0; transform: translateX(-50%) translateY(8px); }

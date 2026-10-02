@@ -1,0 +1,13 @@
+{
+  "name": "blockfb",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chrome extension that makes every part of Facebook toggleable.",
+  "scripts": {
+    "test": "node test/smoke.js",
+    "zip": "rm -f blockfb.zip && zip -r blockfb.zip manifest.json icons src -x '*.DS_Store'"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  }
+}

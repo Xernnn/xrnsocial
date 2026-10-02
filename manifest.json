@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "BlockFB — Facebook Element Blocker",
+  "version": "1.0.0",
+  "description": "Toggle off any part of Facebook: stories, reels, sponsored posts, sidebars, chat — or point and click to hide anything else.",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": [
+    "*://*.facebook.com/*",
+    "*://*.messenger.com/*"
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "BlockFB",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.facebook.com/*", "*://*.messenger.com/*"],
+      "js": [
+        "src/common/presets.js",
+        "src/common/storage.js",
+        "src/content/engine.js",
+        "src/content/picker.js",
+        "src/content/main.js"
+      ],
+      "css": ["src/content/content.css"],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "commands": {
+    "toggle-picker": {
+      "suggested_key": { "default": "Alt+Shift+H" },
+      "description": "Pick an element on Facebook to hide"
+    },
+    "toggle-master": {
+      "suggested_key": { "default": "Alt+Shift+B" },
+      "description": "Turn all BlockFB rules on/off"
+    }
+  }
+}
