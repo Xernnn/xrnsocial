@@ -370,6 +370,9 @@ function start() {
   siteId = tabSite && SITES.get(tabSite) ? tabSite : SITES.available()[0].id;
   render();
   refreshStats(0);
+  /* Switches animate only once the first state is drawn; otherwise the
+   * ones written into the page unchecked would slide on at every open. */
+  requestAnimationFrame(function () { document.body.classList.add('is-ready'); });
 }
 
 store.get().then(function (s) {
