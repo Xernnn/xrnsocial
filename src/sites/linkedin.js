@@ -137,8 +137,13 @@
       css: [
         SECTION + ':has(video, img):not(hr + div):not(:has(button ' + MENU + ', [data-testid="expandable-text-box"], ul[role="presentation"], button ' + LIKE + '))',
         /* Some posts (ads, link posts) keep the text and the picture in one
-         * section: then the picture's own box goes. */
-        SECTION + ':has(> p [data-testid="expandable-text-box"]) > :is(div, a):has(video, img):not(:has([data-testid="expandable-text-box"]))'
+         * section, at any depth: then the picture's own link goes, or the
+         * video's box. Never inside the text, never in comments (whose
+         * avatars are links with pictures too). Keyed on the link or video
+         * box rather than "any box with a picture", which would make every
+         * div on the page a candidate. */
+        SECTION + ':has([data-testid="expandable-text-box"]) a:has(> figure img):not([data-testid="expandable-text-box"] *):not([data-testid*="commentList"] *)',
+        SECTION + ':has([data-testid="expandable-text-box"]) div:has(> video):not([data-testid*="commentList"] *)'
       ]
     },
     SITES.common.noAutoplay('Inside posts', 'Videos in the feed stay paused while you scroll past. Click one and it plays as normal.'),

@@ -755,7 +755,8 @@ console.log('\nlinkedin.com as of October 2026 (test/fixtures/linkedin.html)');
   ok('the button row, the counts and the picture go as sections; header and text stay',
     cssHides('actions-plain') && cssHides('counts-plain') && cssHides('media-plain') &&
     !cssHides('head-plain') && !cssHides('text-plain'));
-  ok('where text and picture share a section, only the picture goes', cssHides('ad-media') && !cssHides('ad-body'));
+  ok('where text and picture share a section, at any depth, only the picture goes',
+    cssHides('ad-media-link') && !cssHides('ad-media-title') && !cssHides('ad-body'));
   ok('media never takes a header, an activity line or the author after it, whose pictures are people',
     !cssHides('activity-line') && !cssHides('activity-author') && !cssHides('head-plain'));
   w.BFX_ENGINE.apply(only(['news']));

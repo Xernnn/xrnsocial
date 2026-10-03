@@ -8,7 +8,8 @@ module.exports = {
   home: 'https://www.instagram.com/',
   adSteps: 16,
   ads,
-  popup: { label: 'Stories', find: `() => { const u = document.querySelector('main ul canvas'); return u ? [u.closest('ul')] : []; }` },
+  /* Not stories: the tray only exists while someone you follow has one. */
+  popup: { label: 'Right column', find: `() => [...document.querySelectorAll('a[href^="/explore/people/"]')]` },
   switches: {
     sponsored: { find: ads, scroll: 10 },
     reels: { find: `() => [...document.querySelectorAll('article')].filter(a => a.querySelector('a[href^="/reels/"]:not([href^="/reels/audio/"]), a[href^="/reel/"]')).concat([...document.querySelectorAll('a[href="/reels/"]')])`, scroll: 3 },
