@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-BlockDistractXrn (formerly BlockFB) is a Manifest V3 Chrome/Edge extension that hides the distracting parts of social sites: presets, a point-and-click picker and keyword blocks. Facebook, Reddit and X are done. LinkedIn, Instagram, TikTok and Twitch are being added in that order, one rule pack per site. There is no build step, no bundler, and no runtime dependencies. `jsdom` and `puppeteer-core` are only used by the tests. `main` holds the last Facebook-only release; multi-site work is on the `multi-site` branch. Internal names keep the old `bfx` prefix (storage key `bfx`, `data-bfx-*` attributes, `BFX_*` globals); renaming them would reset users' settings.
+BlockDistractXrn (formerly BlockFB) is a Manifest V3 Chrome/Edge extension that hides the distracting parts of social sites: presets, a point-and-click picker and keyword blocks. Facebook, Reddit, X and LinkedIn are done. Instagram, TikTok and Twitch are being added in that order, one rule pack per site. There is no build step, no bundler, and no runtime dependencies. `jsdom` and `puppeteer-core` are only used by the tests. `main` holds the last Facebook-only release; multi-site work is on the `multi-site` branch. Internal names keep the old `bfx` prefix (storage key `bfx`, `data-bfx-*` attributes, `BFX_*` globals); renaming them would reset users' settings.
 
 ## Commands
 
@@ -52,7 +52,7 @@ A pack calls `BFX_SITES.register({...})` with:
   - `picker.keys: { tag: attribute }`: generic wrapper elements and the attribute that tells one use from another (`faceplate-partial` → `name`). A trailing `_hash` in the value becomes a `^=` prefix.
   - `picker.generic`: a regex of custom tags that mean nothing alone (`faceplate-number`). Every other custom tag, and `host > [slot="…"]` for a slotted part, is a "semantic" candidate the picker may use however many elements it matches.
 
-`api` (built in engine.js) gives packs `hide`, `HIDDEN`, `state()`, `generation()`, `firstLook`, `visibleText`, `readableText`, `headText`, `looksSponsored`, `referencedText`, `cardFor`, `climbTo`, `stripTitleCount`, `feedText`, `AD_WORD`, `AD_LABEL` and `INVISIBLE_CHARS`. Don't reach into engine internals from a pack.
+`api` (built in engine.js) gives packs `hide`, `HIDDEN`, `state()`, `generation()`, `firstLook`, `visibleText`, `readableText`, `headText`, `looksSponsored`, `referencedText`, `cardFor`, `climbTo`, `blockOf(mark, others, stop)` (one block of a column whose blocks have no hooks), `stripTitleCount`, `feedText`, `AD_WORD`, `AD_LABEL` and `INVISIBLE_CHARS`. Don't reach into engine internals from a pack.
 
 Adding a site:
 1. Write the pack, following the live-check method below. Detection must come from measuring the logged-in site, never guessing.
@@ -105,11 +105,20 @@ What identifies things on live Reddit, in `src/sites/reddit.js` (verified Octobe
 What identifies things on live X, in `src/sites/x.js` (verified October 2026, signed in). Classes are generated (`css-175oi2r`, `r-1awozwy`); `data-testid`s survive builds and languages:
 - Every timeline row is `[data-testid="cellInnerDiv"]` (the unit), posts or not; a post is `article[data-testid="tweet"]`. The list is virtualized and positions rows absolutely, but it re-measures, so a hidden row leaves no gap (checked live). React keys each row to one entry, so a row is never reused for another post.
 - **Ads**: a `placementTracking` box whose first children are four impression pixels (`top-`/`right-`/`bottom-`/`left-impression-pixel`), with the post inside. Ordinary posts have `placementTracking` only around videos, without pixels. Ad links carry `twclid=`. The same structure appears in reply threads. The JS fallback is an "Ad" label (`AD_LABEL`) in the post outside the text and author line.
-- **Right column**: blocks under one container: search (`form[role="search"]`), Premium (`a[href^="/i/premium_sign_up"]`), Today's News (`news_sidebar`), trends (`trend`), who to follow (`UserCell`), footer (`nav`). Labels like "Who to follow" are English-only `aria-label`s, so `blockFor()` climbs from a block's mark to the largest box that holds no other block's mark.
+- **Right column**: blocks under one container: search (`form[role="search"]`), Premium (`a[href^="/i/premium_sign_up"]`), Today's News (`news_sidebar`), trends (`trend`), who to follow (`UserCell`), footer (`nav`). Labels like "Who to follow" are English-only `aria-label`s, so `sidebarBlock()` uses `api.blockOf()` to climb from a block's mark to the largest box that holds no other block's mark.
 - **Promoted trend**: a `trend` with a second icon (path `M19.498 3h-15c-1.381…`) besides the caret. **Repost**: `socialContext` with the repost arrow (path `M4.75 3.79l4.603 4.3…`) in its line. That arrow is **not** the same drawing as the repost button's (`M4.5 3.88…`), so don't compare the two.
 - **Opened post** on `/status/<id>`: the row whose `time` link ends in `/status/<id>`. It leaves the DOM once scrolled far away, so `belowOpened()` remembers its page position.
 - A post's own author line is the first `User-Name` not inside a `[role="link"]` box; a quoted post's always is. The unread badge is the only `div[aria-label]` inside a menu link (`header nav a div[aria-label]`).
 - `following` clicks the second tab (`[role="tablist"] [role="tab"]`), once per arrival on `/home`. X remembers the tab for the account: live checks exclude it from "everything on" (`skipInAllOn` in the probe file) and put the person's tab back afterwards.
+
+What identifies things on live LinkedIn, in `src/sites/linkedin.js` (verified October 2026, signed in). Classes are generated, `componentkey`s are random per render (except `feedRightNavGamesComponentRef`), and labels are English-only:
+- The feed is `[data-testid="mainFeed"]`; each child is one lazily mounted item (the unit). Items are **`display: contents`** around a grid holding one `role="listitem"`: `display: none` still hides them, but `checkVisibility()` is always false for them (probe the listitem) and a filter on them does nothing (blur targets the listitem).
+- A post is the children of the box holding its screen-reader `h2` ("Feed post"); the h2 is there in every language. Icons carry design-system tokens (`svg[data-token-id]`): 383 the post's "…" menu, 206 its ✕, 289 Like, 380 reactions menu, 202 Comment, 255 Repost, 86 the Follow "+".
+- The section with the menu (383) is the author's header, **unless** it is followed by an `hr` and a block with an `a figure`: then it is an activity line ("IBM commented", "X likes this", "Followed by X", holding the reactor's picture and the menu) and that block is the header. `headerOf()`/`authorAfter()`.
+- **Ads** print "Promoted" where other posts print the time. Nothing language-free was found (attributes, links and icons were diffed against organic posts); ads usually lack the ✕ (206), but so does the occasional organic post, so that is not used. `li_fat_id=` on outbound links and the "View Sponsored Content" label catch some ads by CSS.
+- Both rails are `aside`s inside `main`. Their blocks are told apart by links with `api.blockOf()`: profile (`/in/`), Premium (`/premium/`), stats (`/me/profile-views`, `/analytics/`), shortcuts (`/my-items/`, `/groups/`, `/events/`), news (`/news/story/`), games, footer.
+- The section globals (`postActions`, `counts`, `media`) look at a post again only when the generation or its text length changed (`changed()`), and `media` measures nothing: with every switch on, an earlier version spent 600 ms per 8 scrolls in layout and repeated work.
+- LinkedIn scrolls an inner container, so `window.scrollY` stays 0; `page.mouse.wheel` still loads more posts.
 
 ## Selector rules
 
@@ -117,7 +126,7 @@ Facebook's class names (`x1n2onr6`) and React ids (`:r7:`) change with every bui
 
 Chrome rejects `:has()` nested inside `:has()`, but jsdom accepts it. Only `npm run test:browser` catches that, which is why "smallest box containing both X and Y" rules (like `postActions`) are JS heuristics. Custom selectors pass `store.validSelector()` before they reach the stylesheet, because one that doesn't parse could close its rule and inject CSS.
 
-Preset schema (in each `src/sites/<id>.js`): `{ id, group, label, desc, on?: true, css?: [selectors], style?: rawCss, shadow?: [{ host, css }], js?: { kind, ...params }, behavior?: true }`. A preset may also be implemented by a pack global with the same id. `on` marks a switch that is on by default. `behavior` marks a switch the engine implements directly by preset id (`noAutoplay` pauses videos started without a recent pointerdown or Enter/Space). Like effect-only presets, it has no count in `stats()`. Popup groups come from the order of `group` values. The README states each site's preset count and default-on count (Facebook 34 and 7, Reddit 23 and 6, X 24 and 5). Update those numbers when you add presets.
+Preset schema (in each `src/sites/<id>.js`): `{ id, group, label, desc, on?: true, css?: [selectors], style?: rawCss, shadow?: [{ host, css }], js?: { kind, ...params }, behavior?: true }`. A preset may also be implemented by a pack global with the same id. `on` marks a switch that is on by default. `behavior` marks a switch the engine implements directly by preset id (`noAutoplay` pauses videos started without a recent pointerdown or Enter/Space). Like effect-only presets, it has no count in `stats()`. Popup groups come from the order of `group` values. The README states each site's preset count and default-on count (Facebook 34 and 7, Reddit 23 and 6, X 24 and 5, LinkedIn 19 and 3). Update those numbers when you add presets.
 
 ## Test harness quirks
 

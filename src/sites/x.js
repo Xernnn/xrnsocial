@@ -353,27 +353,13 @@
     footer: 'nav'
   };
 
-  function blockFor(column, kind) {
-    var mark = column.querySelector(BLOCK_MARKS[kind]);
-    if (!mark) return null;
+  function sidebarBlock(kind) {
     var others = Object.keys(BLOCK_MARKS).filter(function (k) { return k !== kind; })
       .map(function (k) { return BLOCK_MARKS[k]; }).join(', ');
-    var node = mark;
-    while (node.parentElement && node.parentElement !== column) {
-      var parent = node.parentElement;
-      var found = parent.querySelectorAll(others);
-      for (var i = 0; i < found.length; i++) {
-        if (!node.contains(found[i])) return node;
-      }
-      node = parent;
-    }
-    return null;   // the only block left: never hide the whole column
-  }
-
-  function sidebarBlock(kind) {
     return function (api) {
       var column = document.querySelector('[data-testid="sidebarColumn"]');
-      var block = column && blockFor(column, kind);
+      var mark = column && column.querySelector(BLOCK_MARKS[kind]);
+      var block = mark && api.blockOf(mark, others, column);
       if (block) api.hide(block, kind);
     };
   }

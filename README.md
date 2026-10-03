@@ -14,7 +14,8 @@ Nothing leaves your browser: no network requests, no analytics, no accounts.
 | Facebook | done — checked against the live site, October 2026 |
 | Reddit | done — checked against the live site, October 2026 |
 | X | done — checked against the live site, October 2026 |
-| LinkedIn, Instagram, TikTok, Twitch | being added, one at a time |
+| LinkedIn | done — checked against the live site, October 2026 |
+| Instagram, TikTok, Twitch | being added, one at a time |
 
 Each site has its own switches and picked rules, and can be switched off on
 its own from the popup. The pause switch, the word list and the "show" bars
@@ -53,6 +54,11 @@ Premium upsells, who to follow, and the unread badges. **Open Home on
 arrive (click "For you" to stay there for that visit); **Replies from verified
 accounts** clears the paid-checkmark replies under a post you open, leaving
 the post and the thread above it.
+
+On LinkedIn, 19 switches. Three are on by default: promoted posts, Premium
+upsells, and the red badges. **Posts from people you don't follow** and
+**Posts shown because of someone you know** ("X likes this", "X commented")
+are off by default — on a typical feed they are most of it.
 
 With a supported site's tab open, each active rule shows how much it matched on that
 page: **3 here**, or **none here** when nothing matched. Only things you would
@@ -101,7 +107,9 @@ post's title. A post itself can't be picked any other way: Facebook rebuilds
 and renumbers the feed as you scroll. On Reddit, a whole post means **posts
 from that community**, and a part of a post (its title, picture, the line
 with the community name) means that part of every post. On X it means
-**posts from that account** — quotes of that account's posts stay.
+**posts from that account** — quotes of that account's posts stay. On
+LinkedIn it means **posts from that person or page**, keyed on the author's
+picture in the header, never on whoever reacted.
 
 `Alt+Shift+B` pauses and resumes every rule at once; the toolbar icon shows
 **off** while paused.
@@ -247,6 +255,19 @@ misfire on what someone wrote. Corrections go in `src/sites/facebook.js`.
 - **X: Open Home on "Following"** clicks the tab for you, and X remembers the
   last tab you used, so after turning it off Home stays on Following until you
   click "For you" once.
+- **LinkedIn ads are found by their "Promoted" label.** No language-free
+  marker was found on them, so the label is matched in the languages LinkedIn
+  ships most (English, Spanish, Portuguese, Italian, German, French, Dutch,
+  Polish, Vietnamese, Turkish, Russian, Japanese, Chinese, Korean). In other
+  languages only ads whose links carry LinkedIn's ad-tracking id are caught;
+  pick the rest, or tell us the word.
+- **LinkedIn: not seen live**, so checked against the fixture only: the jobs
+  carousel (it came up once while mapping the site, not while testing) and
+  promoted cards in the right column. Feed ads, Premium offers, suggested and
+  activity posts, every post part and both columns were checked live.
+- **LinkedIn's post parts key on icon ids** (the Like, Comment and Repost
+  buttons, the Follow "+", the post's "…" menu). If LinkedIn renumbers its
+  icons, those switches show **none here** until they're updated.
 - **Firefox** would need the background section changed from `service_worker`
   to `scripts`; everything else is compatible.
 
@@ -258,6 +279,7 @@ src/common/sites.js         the site list, and the registry rule packs join
 src/sites/facebook.js       Facebook's switches and detection (one file per site)
 src/sites/reddit.js         Reddit's
 src/sites/x.js              X's
+src/sites/linkedin.js       LinkedIn's
 src/common/storage.js       one key in chrome.storage.local, shared everywhere
 src/content/engine.js       stylesheet builder + observer, driven by the site's pack
 src/content/picker.js       overlay, and the selector generator
@@ -278,7 +300,7 @@ the elements they were generated from.
 
 `npm run test:browser` loads the unpacked extension into Chrome for Testing
 and serves fixture pages at `https://www.facebook.com/`,
-`https://www.reddit.com/` and `https://x.com/`, so the content scripts
+`https://www.reddit.com/`, `https://x.com/` and `https://www.linkedin.com/`, so the content scripts
 run exactly as they do on the real site. It checks what jsdom cannot: that
 Chrome accepts every selector (jsdom is more lenient about `:has()`), the real
 CSS cascade, settings reaching open tabs, reel redirects, the popup, and

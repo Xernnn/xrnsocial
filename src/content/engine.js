@@ -333,6 +333,23 @@
     return node;
   }
 
+  /* The largest box around `mark`, below `stop`, that holds nothing matching
+   * `others` besides what is inside the mark's own box: one block of a
+   * column whose blocks have no hooks of their own (X's right column,
+   * LinkedIn's rails). Null when the climb reaches `stop`, so a lone block
+   * never takes the whole column with it. */
+  function blockOf(mark, others, stop) {
+    var node = mark;
+    while (node.parentElement && node.parentElement !== stop) {
+      var found = node.parentElement.querySelectorAll(others);
+      for (var i = 0; i < found.length; i++) {
+        if (!node.contains(found[i])) return node;
+      }
+      node = node.parentElement;
+    }
+    return null;
+  }
+
   /* "(3) Facebook" in the tab title pulls just as hard as the red dot. */
   function stripTitleCount() {
     var clean = document.title.replace(/^\(\d+\+?\)\s*/, '');
@@ -450,6 +467,7 @@
     referencedText: referencedText,
     cardFor: cardFor,
     climbTo: climbTo,
+    blockOf: blockOf,
     stripTitleCount: stripTitleCount,
     feedText: function (unit, rule, ctx) { return CORE.feedText(unit, rule, ctx); },
     AD_WORD: AD_WORD,

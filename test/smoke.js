@@ -133,6 +133,7 @@ function boot(html, url) {
     'src/sites/facebook.js',
     'src/sites/reddit.js',
     'src/sites/x.js',
+    'src/sites/linkedin.js',
     'src/common/storage.js',
     'src/content/engine.js',
     'src/content/picker.js'
@@ -699,6 +700,56 @@ console.log('\nx.com as of October 2026 (test/fixtures/x.html)');
   lists.BFX_ENGINE.apply(lists.BFX_STORE.merge(null));
   await frame();
   ok('user cells on a following list are the content, not suggestions', !lists.document.getElementById('cell-wtf-user').hasAttribute('data-bfx-hidden-by'));
+}
+
+/* ----------------------------------------------- linkedin.com, October 2026 -- */
+console.log('\nlinkedin.com as of October 2026 (test/fixtures/linkedin.html)');
+{
+  const html = fs.readFileSync(path.join(__dirname, 'fixtures/linkedin.html'), 'utf8');
+  const w = boot(html, 'https://www.linkedin.com/feed/');
+  const $$ = id => w.document.getElementById(id);
+  const by = id => $$(id) && $$(id).getAttribute('data-bfx-hidden-by');
+  const shown = id => !$$(id).closest('[data-bfx-hidden-by]');
+  const S = w.BFX_STORE;
+  const ids = w.BFX_SITES.get('linkedin').presets.map(r => r.id);
+  const only = list => { const p = {}; ids.forEach(k => { p[k] = list.includes(k); }); return S.merge({ sites: { linkedin: { presets: p } } }); };
+
+  ok('linkedin.com runs the LinkedIn rules', w.BFX_ENGINE.site && w.BFX_ENGINE.site.id === 'linkedin');
+  w.BFX_ENGINE.apply(S.merge(null));
+  await frame();
+  ok('a promoted post goes by its label', by('item-ad') === 'promoted', 'got ' + by('item-ad'));
+  ok('the label is matched in other languages too', by('item-ad-de') === 'promoted', 'got ' + by('item-ad-de'));
+  ok('a promoted card in the right column goes as its block', by('right-promo') === 'promoted' && shown('right-news'));
+  ok('Premium in the left column goes as its block, the profile card stays', by('left-premium') === 'premiumUpsell' && shown('left-profile') && shown('left-stats'));
+  ok('the unread badges go, and the tab title count', by('badge-msg') === 'badges' && by('badge-notif') === 'badges' && w.document.title === 'Feed | LinkedIn');
+  ok('ordinary, suggested and activity posts stay by default', ['item-plain', 'item-suggested', 'item-activity', 'item-video', 'item-kw'].every(shown));
+
+  w.BFX_ENGINE.apply(only(['suggested', 'activity']));
+  await frame();
+  ok('a Follow button in the header marks a post from someone you don\'t follow', by('item-suggested') === 'suggested' && shown('item-plain'));
+  ok('an activity line above the author marks a post shown because of someone else', by('item-activity') === 'activity');
+  w.BFX_ENGINE.apply(only(['postActions', 'counts', 'media']));
+  await frame();
+  ok('the button row, the counts and the picture go as sections; header and text stay',
+    by('actions-plain') === 'postActions' && by('counts-plain') === 'counts' && by('media-plain') === 'media' &&
+    shown('head-plain') && shown('text-plain'));
+  ok('media never takes a header or an activity line, whose pictures are people',
+    shown('activity-line') && shown('activity-author'));
+  w.BFX_ENGINE.apply(only(['news']));
+  await frame();
+  ok('LinkedIn News goes as its block, puzzles and footer stay', by('right-news') === 'news' && shown('right-games') && shown('right-footer'));
+  const counts = (w.BFX_ENGINE.apply(S.merge(null)), await frame(), w.BFX_ENGINE.stats().presets);
+  ok('the popup counts the ads, Premium and badges', counts.promoted.count >= 3 && counts.premiumUpsell.count >= 2 && counts.badges.count === 2, JSON.stringify(counts));
+
+  w.BFX_ENGINE.apply(S.merge({ keywords: { enabled: true, terms: ['crypto', 'feed'] } }));
+  await frame();
+  ok('word blocks work on LinkedIn posts', by('item-kw') === 'keyword', 'got ' + by('item-kw'));
+  ok('and skip the hidden "Feed post" heading every post starts with', shown('item-plain'), 'hidden by ' + by('item-plain'));
+
+  const pick = w.BFX_PICKER.selectorFor($$('item-activity'));
+  ok('picking an activity post means posts from its author, not the one who reacted → ' + pick.author, pick.author === 'Dana Example');
+  const pick2 = w.BFX_PICKER.selectorFor($$('item-plain'));
+  ok('the author is named from the picture\'s label', pick2.author === 'Ana Example', pick2.author);
 }
 
 report();
