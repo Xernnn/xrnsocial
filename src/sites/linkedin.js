@@ -41,6 +41,9 @@
   var FOLLOW = TOKEN(86);
   var MENU = TOKEN(383);
 
+  /* A post's sections: everything after its screen-reader heading. */
+  var SECTION = ITEM + ' h2 ~ div';
+
   var LEFT_RAIL = 'aside:has(a[href*="/me/profile-views"], a[href*="/my-items/"], a[href*="/mynetwork/network-manager"])';
   var RIGHT_RAIL = 'aside:has([componentkey="feedRightNavGamesComponentRef"], a[href*="/news/story/"], a[href*="/ad/start"])';
 
@@ -106,13 +109,15 @@
       id: 'postActions',
       group: 'Inside posts',
       label: 'Like / comment / repost bar',
-      desc: 'The row of buttons under every post.'
+      desc: 'The row of buttons under every post.',
+      css: [SECTION + ':has(button ' + COMMENT + ', button ' + REPOST + ')']
     },
     {
       id: 'counts',
       group: 'Inside posts',
       label: 'Reaction and comment counts',
-      desc: 'The "275 reactions · 28 comments" line under posts.'
+      desc: 'The "275 reactions · 28 comments" line under posts.',
+      css: [SECTION + ':has(ul[role="presentation"]):not(:has(button ' + LIKE + '))']
     },
     {
       id: 'comments',
@@ -125,7 +130,16 @@
       id: 'media',
       group: 'Inside posts',
       label: 'Images & video in posts',
-      desc: 'Keeps the text, drops pictures, videos and documents.'
+      desc: 'Keeps the text, drops pictures, videos and documents.',
+      /* Not the parts with small pictures of people: the header and the
+       * activity line (both hold the menu), the author block after an
+       * activity line's rule, the counts. */
+      css: [
+        SECTION + ':has(video, img):not(hr + div):not(:has(button ' + MENU + ', [data-testid="expandable-text-box"], ul[role="presentation"], button ' + LIKE + '))',
+        /* Some posts (ads, link posts) keep the text and the picture in one
+         * section: then the picture's own box goes. */
+        SECTION + ':has(> p [data-testid="expandable-text-box"]) > :is(div, a):has(video, img):not(:has([data-testid="expandable-text-box"]))'
+      ]
     },
     SITES.common.noAutoplay('Inside posts', 'Videos in the feed stay paused while you scroll past. Click one and it plays as normal.'),
 
@@ -229,49 +243,14 @@
 
   /* --------------------------------------------------------- globals ---- */
 
-  /* Global rules look at every post on every scan, and LinkedIn changes the
-   * page constantly; a post is looked at again only when the settings or
-   * its content changed. */
-  function changed(item, key, api) {
-    var stamp = api.generation() + ':' + item.textContent.length;
-    if (item[key] === stamp) return false;
-    item[key] = stamp;
+  /* Global rules run on every scan, and LinkedIn changes the page
+   * constantly; a box is looked at again only when the settings or its
+   * content changed. */
+  function changed(box, key, api) {
+    var stamp = api.generation() + ':' + box.textContent.length;
+    if (box[key] === stamp) return false;
+    box[key] = stamp;
     return true;
-  }
-
-  /* Per post, hide the section that holds `mark`, unless it also holds
-   * `unless` (which would mean it climbed past the part it was after). */
-  function sectionGlobal(id, mark, unless) {
-    var key = '__bfxLi_' + id;
-    return function (api) {
-      document.querySelectorAll(ITEM).forEach(function (item) {
-        if (item.closest(api.HIDDEN) || !changed(item, key, api)) return;
-        sectionsOf(item).forEach(function (part) {
-          if (part.localName === 'h2' || part.hasAttribute('data-bfx-hidden-by')) return;
-          if (!part.querySelector(mark)) return;
-          if (unless && part.querySelector(unless)) return;
-          api.hide(part, id);
-        });
-      });
-    };
-  }
-
-  /* Media: a section with a picture or a video that is none of the parts
-   * that carry small pictures of people — the header, the activity line,
-   * the counts — and not the text. Nothing is measured: that would force a
-   * layout on every scan. */
-  function hideMedia(api) {
-    document.querySelectorAll(ITEM).forEach(function (item) {
-      if (item.closest(api.HIDDEN) || !changed(item, '__bfxLiMedia', api)) return;
-      var header = headerOf(item);
-      var menu = menuSection(item);
-      sectionsOf(item).forEach(function (part) {
-        if (part === header || part === menu || part.localName === 'h2' || part.localName === 'hr') return;
-        if (part.hasAttribute('data-bfx-hidden-by')) return;
-        if (part.querySelector('[data-testid="expandable-text-box"], ul[role="presentation"], button ' + LIKE)) return;
-        if (part.querySelector('video, img')) api.hide(part, 'media');
-      });
-    });
   }
 
   /* What each block of either rail holds. */
@@ -284,11 +263,13 @@
     stats: 'a[href*="/me/profile-views"], a[href*="/analytics/"]',
     shortcuts: 'a[href*="/my-items/"], a[href*="/events/"], a[href*="/groups/"]'
   };
-  function railBlock(id, kind, rail) {
+  var ALL_MARKS = Object.keys(RAIL_MARKS).map(function (k) { return RAIL_MARKS[k]; }).join(', ');
+  function railBlock(id, kind) {
     var others = Object.keys(RAIL_MARKS).filter(function (k) { return k !== kind; })
       .map(function (k) { return RAIL_MARKS[k]; }).join(', ');
     return function (api) {
-      document.querySelectorAll(rail).forEach(function (aside) {
+      document.querySelectorAll('main aside').forEach(function (aside) {
+        if (!changed(aside, '__bfxLi_' + id, api)) return;
         var mark = aside.querySelector(RAIL_MARKS[kind]);
         var block = mark && api.blockOf(mark, others, aside);
         if (block) api.hide(block, id);
@@ -310,13 +291,14 @@
   }
 
   /* Premium in the left column goes with the other Premium upsells. */
-  var premiumRail = railBlock('premiumUpsell', 'premium', LEFT_RAIL);
+  var premiumRail = railBlock('premiumUpsell', 'premium');
   var promotedRail = function (api) {
-    /* A promoted card in the right column carries the same label. */
-    document.querySelectorAll(RIGHT_RAIL).forEach(function (aside) {
+    /* A promoted card in a column carries the same label as a feed ad. */
+    document.querySelectorAll('main aside').forEach(function (aside) {
+      if (!changed(aside, '__bfxLiPromoted', api)) return;
       aside.querySelectorAll('span, p').forEach(function (el) {
         if (el.children.length || !PROMOTED.test((el.textContent || '').trim())) return;
-        var block = api.blockOf(el, Object.keys(RAIL_MARKS).map(function (k) { return RAIL_MARKS[k]; }).join(', '), aside);
+        var block = api.blockOf(el, ALL_MARKS, aside);
         if (block) api.hide(block, 'promoted');
       });
     });
@@ -358,10 +340,7 @@
     globals: {
       promoted: promotedRail,
       premiumUpsell: premiumRail,
-      postActions: sectionGlobal('postActions', 'button ' + COMMENT + ', button ' + REPOST),
-      counts: sectionGlobal('counts', 'ul[role="presentation"]', 'button ' + LIKE),
-      media: hideMedia,
-      news: railBlock('news', 'news', RIGHT_RAIL),
+      news: railBlock('news', 'news'),
       badges: stripBadges
     },
     picker: {

@@ -48,7 +48,7 @@ function findChrome() {
 /* The preset list, read the same way the extension reads it. */
 function loadPresets(siteId) {
   const sandbox = { self: {} };
-  for (const file of ['src/common/sites.js', 'src/sites/facebook.js', 'src/sites/reddit.js', 'src/sites/x.js', 'src/sites/linkedin.js', 'src/sites/instagram.js']) {
+  for (const file of ['src/common/sites.js', 'src/sites/facebook.js', 'src/sites/reddit.js', 'src/sites/x.js', 'src/sites/linkedin.js', 'src/sites/instagram.js', 'src/sites/twitch.js']) {
     vm.runInNewContext(fs.readFileSync(path.join(root, file), 'utf8'), sandbox);
   }
   return sandbox.self.BFX_SITES.get(siteId || 'facebook').presets;
@@ -97,6 +97,7 @@ async function until(fn, timeout = 3000) {
     const xDoc = fs.readFileSync(path.join(fixtures, 'x.html'), 'utf8');
     const linkedinDoc = fs.readFileSync(path.join(fixtures, 'linkedin.html'), 'utf8');
     const instagramDoc = fs.readFileSync(path.join(fixtures, 'instagram.html'), 'utf8');
+    const twitchDoc = fs.readFileSync(path.join(fixtures, 'twitch.html'), 'utf8');
     const page = await browser.newPage();
     await page.setRequestInterception(true);
     page.on('request', req => {
@@ -111,6 +112,8 @@ async function until(fn, timeout = 3000) {
         req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: linkedinDoc });
       } else if (/(^|\.)instagram\.com$/.test(url.hostname) && req.resourceType() === 'document') {
         req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: instagramDoc });
+      } else if (/(^|\.)twitch\.tv$/.test(url.hostname) && req.resourceType() === 'document') {
+        req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: twitchDoc });
       } else if (url.protocol === 'http:' || url.protocol === 'https:') {
         req.abort();
       } else {
@@ -573,6 +576,58 @@ async function until(fn, timeout = 3000) {
         return true;
       });
       ok(`instagram ${id}: hides ${what}, keeps the rest, and gives it back when off`, hid && keeps && back);
+    }
+    await resetState();
+
+    /* -------------------------------------------------------------- twitch -- */
+    console.log('\ntwitch.tv in real Chrome');
+    await resetState();
+    await page.bringToFront();
+    await page.goto('https://www.twitch.tv/', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#bfx-style');
+    const twPresets = loadPresets('twitch');
+    const twIds = twPresets.map(r => r.id);
+    ok('every Twitch selector parses in Chrome', (await page.evaluate(list => list.filter(sel => {
+      try { document.querySelectorAll(sel); return false; } catch (e) { return true; }
+    }), twPresets.flatMap(r => r.css || []))).length === 0);
+    ok('the front page ad and the display ad go', await until(() => isHidden('headliner')) && await isHidden('sda'));
+    ok('Prime and Bits offers go, and the notification badge', await isHidden('prime') && await isHidden('bits') && await isHidden('badge'));
+    ok('recommended channels go as their group; followed channels and the rest of the carousel stay',
+      await isHidden('grp-recommended') && !(await isHidden('grp-followed')) && !(await isHidden('featured')));
+    ok('a page rule with !important of its own cannot bring a hidden thing back', await page.evaluate(() => {
+      const st = document.createElement('style');
+      st.textContent = '[data-a-target="frontpage-headliner"] { display: flex !important; }';
+      document.head.appendChild(st);
+      const gone = !document.getElementById('headliner').checkVisibility();
+      st.remove();
+      return gone;
+    }));
+
+    const twOnly = list => setState(`s => { const p = s.sites.twitch.presets; ${JSON.stringify(twIds)}.forEach(k => { p[k] = false; }); ${list.map(id => `p.${id} = true;`).join(' ')} }`);
+    const twCases = [
+      ['similarChannels', '"viewers also watch"', ['grp-similar'], ['grp-followed']],
+      ['sideNav', 'the whole side nav', ['side-nav'], ['shelf']],
+      ['featuredCarousel', 'the featured carousel', ['carousel'], ['shelf']],
+      ['chat', 'the chat column', ['chat-column'], ['player']],
+      ['chatBadges', 'badges in chat', ['chat-badge'], ['line']],
+      ['channelPoints', 'channel points', ['points'], ['line']],
+      ['subGift', 'Subscribe and Gift', ['sub', 'gift'], ['follow']],
+      ['aboutPanels', 'the about panels', ['about'], ['player']]
+    ];
+    for (const [id, what, hide, keep] of twCases) {
+      await twOnly([id]);
+      const hid = await until(async () => {
+        for (const g of hide) if (!(await isHidden(g))) return false;
+        return true;
+      });
+      let keeps = true;
+      for (const k of keep) if (await isHidden(k)) keeps = false;
+      await twOnly([]);
+      const back = await until(async () => {
+        for (const g of hide) if (await isHidden(g)) return false;
+        return true;
+      });
+      ok(`twitch ${id}: hides ${what}, keeps the rest, and gives it back when off`, hid && keeps && back);
     }
     await resetState();
 

@@ -135,6 +135,7 @@ function boot(html, url) {
     'src/sites/x.js',
     'src/sites/linkedin.js',
     'src/sites/instagram.js',
+    'src/sites/twitch.js',
     'src/common/storage.js',
     'src/content/engine.js',
     'src/content/picker.js'
@@ -181,8 +182,8 @@ const everything = BFX_STORE.merge({
 });
 BFX_ENGINE.apply(everything);
 const css = window.document.getElementById('bfx-style').textContent;
-ok('the hidden marker rule is defined', css.includes('[data-bfx-hidden-by]{display:none !important}'));
-ok('preset selectors are emitted', css.includes('div[data-pagelet="Stories"]{display:none !important}'));
+ok('the hidden marker rule is defined', css.includes('[data-bfx-hidden-by]:not(#bfx-z){display:none !important}'));
+ok('preset selectors are emitted', css.includes('div[data-pagelet="Stories"]:not(#bfx-z){display:none !important}'));
 ok('effect rules keep their own CSS', css.includes('filter: blur(5px)'));
 ok('black & white greys the whole page, with no hover exception',
   css.includes('html { filter: grayscale(1) !important; }') && !/:hover[^{]*\{[^}]*grayscale/.test(css));
@@ -280,7 +281,7 @@ ok('the same phrase inside the post body is not', !$('u-body').hasAttribute('dat
 ok('comments are not judged as posts of their own', !$('u-comment').hasAttribute('data-bfx-hidden-by'), 'hidden by ' + hiddenBy('u-comment'));
 ok('Vietnamese "suggested for you" is hidden', hiddenBy('u-vi') === 'suggested', 'got ' + hiddenBy('u-vi'));
 ok('links to reels are hidden by CSS', $('reel-link').matches('a[href^="/reel/"]') &&
-  window.document.getElementById('bfx-style').textContent.includes('a[href^="/reel/"]{display:none !important}'));
+  window.document.getElementById('bfx-style').textContent.includes('a[href^="/reel/"]:not(#bfx-z){display:none !important}'));
 
 ok('the Like / Comment row is hidden', hiddenBy('bar') === 'postActions', 'got ' + hiddenBy('bar'));
 ok('but not the comments or their own Like buttons',
@@ -577,13 +578,13 @@ console.log('\nreddit.com as of October 2026 (test/fixtures/reddit.html)');
   w.BFX_ENGINE.apply(S.merge(null));
   await frame();
   ok('feed ads are hidden by their own element, with the line after them',
-    sheet().includes('shreddit-ad-post{display:none') && sheet().includes('shreddit-ad-post + hr{display:none'));
-  ok('sidebar and comment-thread ads are hidden', sheet().includes('shreddit-sidebar-ad{') &&
-    sheet().includes('shreddit-comments-page-ad{') && sheet().includes('shreddit-comment-tree-ad{'));
+    sheet().includes('shreddit-ad-post:not(#bfx-z){display:none') && sheet().includes('shreddit-ad-post + hr:not(#bfx-z){display:none'));
+  ok('sidebar and comment-thread ads are hidden', sheet().includes('shreddit-sidebar-ad:not(#bfx-z){') &&
+    sheet().includes('shreddit-comments-page-ad:not(#bfx-z){') && sheet().includes('shreddit-comment-tree-ad:not(#bfx-z){'));
   ok('a post from a community you have not joined is hidden on Home', by('a-rec') === 'recommended', 'got ' + by('a-rec'));
   ok('a post from a community you joined stays', shown('a-sub'));
   ok('the line after a hidden post goes with it',
-    sheet().includes('[data-bfx-hidden-by]:not([data-bfx-note]) + hr{display:none'));
+    sheet().includes('[data-bfx-hidden-by]:not([data-bfx-note]) + hr:not(#bfx-z){display:none'));
   ok('the tab title count is stripped', w.document.title === 'Reddit - The heart of the internet', w.document.title);
   const counts = w.BFX_ENGINE.stats().presets;
   ok('the popup counts an ad once, not its line, and skips empty slots',
@@ -646,7 +647,7 @@ console.log('\nx.com as of October 2026 (test/fixtures/x.html)');
   ok('x.com runs the X rules', w.BFX_ENGINE.site && w.BFX_ENGINE.site.id === 'x');
   w.BFX_ENGINE.apply(S.merge(null));
   await frame();
-  ok('an ad is hidden by its impression pixels', sheet().includes('[data-testid="cellInnerDiv"]:has([data-testid="top-impression-pixel"]){display:none') && by('cell-ad') === 'promoted', 'got ' + by('cell-ad'));
+  ok('an ad is hidden by its impression pixels', sheet().includes('[data-testid="cellInnerDiv"]:has([data-testid="top-impression-pixel"]):not(#bfx-z){display:none') && by('cell-ad') === 'promoted', 'got ' + by('cell-ad'));
   ok('an ad with no pixels is caught by its "Ad" label', by('cell-adlabel') === 'promoted', 'got ' + by('cell-adlabel'));
   ok('who-to-follow rows go: heading, user cells and "Show more"',
     by('cell-wtf-head') === 'whoToFollow' && by('cell-wtf-user') === 'whoToFollow' && by('cell-wtf-more') === 'whoToFollow');
@@ -719,6 +720,20 @@ console.log('\nlinkedin.com as of October 2026 (test/fixtures/linkedin.html)');
   w.BFX_ENGINE.apply(S.merge(null));
   await frame();
   ok('a promoted post goes by its label', by('item-ad') === 'promoted', 'got ' + by('item-ad'));
+  /* The label can arrive by changing a text node that was already there. */
+  const late = $$('item-plain').cloneNode(true);
+  late.id = 'item-late';
+  late.querySelectorAll('[id]').forEach(e => e.removeAttribute('id'));
+  const slot = Array.from(late.querySelectorAll('p span')).find(e => /2h/.test(e.textContent));
+  slot.firstChild.nodeValue = '';
+  $$('feed').appendChild(late);
+  await frame(); await frame();
+  ok('a post judged before its label arrives is looked at again', !late.hasAttribute('data-bfx-hidden-by'));
+  slot.firstChild.nodeValue = 'Promoted';
+  await frame(); await frame();
+  ok('…when the label is written into the text that was already there', late.getAttribute('data-bfx-hidden-by') === 'promoted',
+    'got ' + late.getAttribute('data-bfx-hidden-by'));
+  late.remove();
   ok('the label is matched in other languages too', by('item-ad-de') === 'promoted', 'got ' + by('item-ad-de'));
   ok('a promoted card in the right column goes as its block', by('right-promo') === 'promoted' && shown('right-news'));
   ok('Premium in the left column goes as its block, the profile card stays', by('left-premium') === 'premiumUpsell' && shown('left-profile') && shown('left-stats'));
@@ -731,11 +746,17 @@ console.log('\nlinkedin.com as of October 2026 (test/fixtures/linkedin.html)');
   ok('an activity line above the author marks a post shown because of someone else', by('item-activity') === 'activity');
   w.BFX_ENGINE.apply(only(['postActions', 'counts', 'media']));
   await frame();
+  /* These go by CSS: does a rule in the sheet match the element? */
+  const cssHides = id => w.document.getElementById('bfx-style').textContent.split('\n').some(line => {
+    const sel = line.slice(0, line.lastIndexOf('{'));
+    try { return /display:none/.test(line) && $$(id).matches(sel); } catch (e) { return false; }
+  });
   ok('the button row, the counts and the picture go as sections; header and text stay',
-    by('actions-plain') === 'postActions' && by('counts-plain') === 'counts' && by('media-plain') === 'media' &&
-    shown('head-plain') && shown('text-plain'));
-  ok('media never takes a header or an activity line, whose pictures are people',
-    shown('activity-line') && shown('activity-author'));
+    cssHides('actions-plain') && cssHides('counts-plain') && cssHides('media-plain') &&
+    !cssHides('head-plain') && !cssHides('text-plain'));
+  ok('where text and picture share a section, only the picture goes', cssHides('ad-media') && !cssHides('ad-body'));
+  ok('media never takes a header, an activity line or the author after it, whose pictures are people',
+    !cssHides('activity-line') && !cssHides('activity-author') && !cssHides('head-plain'));
   w.BFX_ENGINE.apply(only(['news']));
   await frame();
   ok('LinkedIn News goes as its block, puzzles and footer stay', by('right-news') === 'news' && shown('right-games') && shown('right-footer'));
@@ -772,7 +793,7 @@ console.log('\ninstagram.com as of October 2026 (test/fixtures/instagram.html)')
   ok('an ad goes: no time, an "Ad" label and a redirect link', by('a-ad') === 'sponsored', 'got ' + by('a-ad'));
   ok('an ad with a label in another language still goes: it has no time', by('a-ad-quiet') === 'sponsored', 'got ' + by('a-ad-quiet'));
   ok('a post still loading is left alone until it has a name in its header', shown('a-loading'));
-  ok('reels are hidden by default, with the Reels menu item', sheet().includes('article:has(a[href^="/reels/"]:not([href^="/reels/audio/"])){display:none') && sheet().includes('a[href="/reels/"]{display:none'));
+  ok('reels are hidden by default, with the Reels menu item', sheet().includes('article:has(a[href^="/reels/"]:not([href^="/reels/audio/"])):not(#bfx-z){display:none') && sheet().includes('a[href="/reels/"]:not(#bfx-z){display:none'));
   ok('ordinary and suggested posts stay by default', ['a-plain', 'a-suggested', 'a-video', 'a-kw'].every(shown));
   ok('the Messages badge goes, and the tab title count', by('badge') === 'badges' && w.document.title === 'Instagram');
   ok('opening a reel with Reels on lands on the feed',
@@ -801,6 +822,41 @@ console.log('\ninstagram.com as of October 2026 (test/fixtures/instagram.html)')
     pick.author === '@alice_example' && hits.join() === 'a-plain', hits.join());
   const save = w.BFX_PICKER.selectorFor(w.document.querySelector('#actions-plain svg[aria-label="Save"]').closest('[role="button"]'));
   ok('a button with only an icon is named by the icon: ' + save.selector, /:has\(svg\[aria-label="Save"\]\)/.test(save.selector));
+}
+
+/* ------------------------------------------------- twitch.tv, October 2026 -- */
+console.log('\ntwitch.tv as of October 2026 (test/fixtures/twitch.html)');
+{
+  const html = fs.readFileSync(path.join(__dirname, 'fixtures/twitch.html'), 'utf8');
+  const w = boot(html, 'https://www.twitch.tv/');
+  const $$ = id => w.document.getElementById(id);
+  const by = id => $$(id) && $$(id).getAttribute('data-bfx-hidden-by');
+  const S = w.BFX_STORE;
+  const sheet = () => w.document.getElementById('bfx-style').textContent;
+
+  ok('twitch.tv runs the Twitch rules', w.BFX_ENGINE.site && w.BFX_ENGINE.site.id === 'twitch');
+  w.BFX_ENGINE.apply(S.merge(null));
+  await frame();
+  ok('the front page ad and the display ad are hidden by default',
+    sheet().includes('[data-a-target="frontpage-headliner"]:not(#bfx-z){display:none') && sheet().includes('[data-test-selector="sda-wrapper"]:not(#bfx-z){display:none'));
+  ok('recommended channels go as their side nav group; followed channels stay',
+    sheet().includes('[data-test-selector="side-nav"] [role="group"]:has([data-test-selector="recommended-channel"])') &&
+    !sheet().includes('followed-channel'));
+  ok('the tab title count is stripped', w.document.title === 'Twitch', w.document.title);
+
+  w.BFX_ENGINE.apply(S.merge({ keywords: { enabled: true, terms: ['crypto', 'racing'] } }));
+  await frame();
+  ok('word blocks work on stream cards and side nav entries', by('card-kw') === 'keyword' && by('side-bob') === 'keyword' && !by('card-dana'),
+    [by('card-kw'), by('side-bob'), by('card-dana')].join());
+
+  const pick = w.BFX_PICKER.selectorFor($$('card-dana'));
+  ok('picking a stream card means that channel, wherever it is listed → ' + pick.author, pick.author === 'dana_tv' && pick.valid);
+  const side = w.BFX_PICKER.selectorFor($$('side-alice'));
+  ok('…and a side nav entry too', side.author === 'alice_tv' && w.document.querySelectorAll(side.selector).length === 1);
+  const title = w.BFX_PICKER.selectorFor(w.document.querySelector('[data-a-target="stream-title"]'));
+  ok('the picker uses Twitch\'s own hooks: ' + title.selector, title.selector === '[data-a-target="stream-title"]');
+  const line = w.BFX_PICKER.selectorFor($$('line'));
+  ok('and its BEM classes, never generated ones: ' + line.selector, !/sc-|^[A-Za-z]{6}$/.test(line.selector));
 }
 
 report();
