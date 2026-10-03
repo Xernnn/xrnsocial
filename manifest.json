@@ -62,6 +62,7 @@
         "src/sites/linkedin.js",
         "src/sites/instagram.js",
         "src/sites/twitch.js",
+        "src/sites/tiktok.js",
         "src/common/storage.js",
         "src/content/engine.js",
         "src/content/picker.js",

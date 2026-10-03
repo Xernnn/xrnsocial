@@ -48,7 +48,7 @@ function findChrome() {
 /* The preset list, read the same way the extension reads it. */
 function loadPresets(siteId) {
   const sandbox = { self: {} };
-  for (const file of ['src/common/sites.js', 'src/sites/facebook.js', 'src/sites/reddit.js', 'src/sites/x.js', 'src/sites/linkedin.js', 'src/sites/instagram.js', 'src/sites/twitch.js']) {
+  for (const file of ['src/common/sites.js', 'src/sites/facebook.js', 'src/sites/reddit.js', 'src/sites/x.js', 'src/sites/linkedin.js', 'src/sites/instagram.js', 'src/sites/twitch.js', 'src/sites/tiktok.js']) {
     vm.runInNewContext(fs.readFileSync(path.join(root, file), 'utf8'), sandbox);
   }
   return sandbox.self.BFX_SITES.get(siteId || 'facebook').presets;
@@ -98,6 +98,7 @@ async function until(fn, timeout = 3000) {
     const linkedinDoc = fs.readFileSync(path.join(fixtures, 'linkedin.html'), 'utf8');
     const instagramDoc = fs.readFileSync(path.join(fixtures, 'instagram.html'), 'utf8');
     const twitchDoc = fs.readFileSync(path.join(fixtures, 'twitch.html'), 'utf8');
+    const tiktokDoc = fs.readFileSync(path.join(fixtures, 'tiktok.html'), 'utf8');
     const page = await browser.newPage();
     await page.setRequestInterception(true);
     page.on('request', req => {
@@ -114,6 +115,8 @@ async function until(fn, timeout = 3000) {
         req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: instagramDoc });
       } else if (/(^|\.)twitch\.tv$/.test(url.hostname) && req.resourceType() === 'document') {
         req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: twitchDoc });
+      } else if (/(^|\.)tiktok\.com$/.test(url.hostname) && req.resourceType() === 'document') {
+        req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: tiktokDoc });
       } else if (url.protocol === 'http:' || url.protocol === 'https:') {
         req.abort();
       } else {
@@ -628,6 +631,34 @@ async function until(fn, timeout = 3000) {
         return true;
       });
       ok(`twitch ${id}: hides ${what}, keeps the rest, and gives it back when off`, hid && keeps && back);
+    }
+    await resetState();
+
+    /* -------------------------------------------------------------- tiktok -- */
+    console.log('\ntiktok.com in real Chrome');
+    await resetState();
+    await page.bringToFront();
+    await page.goto('https://www.tiktok.com/foryou', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#bfx-style');
+    const ttPresets = loadPresets('tiktok');
+    const ttIds = ttPresets.map(r => r.id);
+    ok('every TikTok selector parses in Chrome', (await page.evaluate(list => list.filter(sel => {
+      try { document.querySelectorAll(sel); return false; } catch (e) { return true; }
+    }), ttPresets.flatMap(r => r.css || []))).length === 0);
+    ok('the coins offer and CapCut tags go by default; the video stays', await until(() => isHidden('coins')) && await isHidden('capcut') && !(await isHidden('v-1')));
+    const ttOnly = list => setState(`s => { const p = s.sites.tiktok.presets; ${JSON.stringify(ttIds)}.forEach(k => { p[k] = false; }); ${list.map(id => `p.${id} = true;`).join(' ')} }`);
+    for (const [id, what, hide, keep] of [
+      ['counts', 'the counts', ['likes-1'], ['desc-1']],
+      ['music', 'the sound link', ['music-1'], ['desc-1']],
+      ['navExtras', 'LIVE and Short dramas', ['nav-live', 'nav-drama'], ['nav-profile']]
+    ]) {
+      await ttOnly([id]);
+      const hid = await until(async () => { for (const g of hide) if (!(await isHidden(g))) return false; return true; });
+      let keeps = true;
+      for (const k of keep) if (await isHidden(k)) keeps = false;
+      await ttOnly([]);
+      const back = await until(async () => { for (const g of hide) if (await isHidden(g)) return false; return true; });
+      ok(`tiktok ${id}: hides ${what}, keeps the rest, and gives it back when off`, hid && keeps && back);
     }
     await resetState();
 

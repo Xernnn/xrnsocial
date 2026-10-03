@@ -136,6 +136,7 @@ function boot(html, url) {
     'src/sites/linkedin.js',
     'src/sites/instagram.js',
     'src/sites/twitch.js',
+    'src/sites/tiktok.js',
     'src/common/storage.js',
     'src/content/engine.js',
     'src/content/picker.js'
@@ -857,6 +858,27 @@ console.log('\ntwitch.tv as of October 2026 (test/fixtures/twitch.html)');
   ok('the picker uses Twitch\'s own hooks: ' + title.selector, title.selector === '[data-a-target="stream-title"]');
   const line = w.BFX_PICKER.selectorFor($$('line'));
   ok('and its BEM classes, never generated ones: ' + line.selector, !/sc-|^[A-Za-z]{6}$/.test(line.selector));
+}
+
+/* --------------------------------------------- tiktok.com, October 2026 -- */
+console.log('\ntiktok.com as of October 2026, signed out (test/fixtures/tiktok.html)');
+{
+  const html = fs.readFileSync(path.join(__dirname, 'fixtures/tiktok.html'), 'utf8');
+  const w = boot(html, 'https://www.tiktok.com/foryou');
+  const $$ = id => w.document.getElementById(id);
+  const S = w.BFX_STORE;
+  const sheet = () => w.document.getElementById('bfx-style').textContent;
+  ok('tiktok.com runs the TikTok rules', w.BFX_ENGINE.site && w.BFX_ENGINE.site.id === 'tiktok');
+  w.BFX_ENGINE.apply(S.merge(null));
+  await frame();
+  ok('TikTok\'s own promotions are hidden by default', sheet().includes('[data-e2e="capcut-tag"]:not(#bfx-z){display:none') &&
+    sheet().includes('[data-e2e="top-right-action-bar-get-coin"]:not(#bfx-z){display:none'));
+  w.BFX_ENGINE.apply(S.merge({ keywords: { enabled: true, terms: ['crypto'] } }));
+  await frame();
+  ok('word blocks work on video descriptions', $$('v-kw').getAttribute('data-bfx-hidden-by') === 'keyword' && !$$('v-1').hasAttribute('data-bfx-hidden-by'));
+  const pick = w.BFX_PICKER.selectorFor($$('v-1'));
+  const hits = Array.from(w.document.querySelectorAll(pick.selector)).map(e => e.id);
+  ok('picking a video means that account, not one whose name starts the same → ' + pick.author, pick.author === '@gina_example' && hits.join() === 'v-1', hits.join());
 }
 
 report();
