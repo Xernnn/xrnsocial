@@ -1,0 +1,108 @@
+<!doctype html>
+<!-- reddit.com (signed in) as it was built in October 2026, cut down to the
+     parts the Reddit pack keys on. Structure copied from the live site; every
+     name and line of text is made up. Posts carry a declarative shadow root
+     (template shadowrootmode) the way Reddit renders vote counts out of reach
+     of page CSS; jsdom leaves those templates inert, so test/smoke.js attaches
+     the same shadow roots by hand. -->
+<html lang="en-US">
+<head><meta charset="utf-8"><title>(2) Reddit - The heart of the internet</title></head>
+<body style="margin:0;font:14px sans-serif">
+  <reddit-header-large style="display:flex;gap:8px;height:56px">
+    <games-section-badge-wrapper id="games-badge">Games</games-section-badge-wrapper>
+    <reddit-search-large id="search" style="display:block;width:300px">Search Reddit</reddit-search-large>
+    <advertise-button id="advertise"><a id="advertise-button" href="https://ads.reddit.com/register">Advertise</a></advertise-button>
+    <reddit-chat-header-button id="chat" style="display:block;width:40px">Chat <dynamic-badge id="chat-badge">3</dynamic-badge></reddit-chat-header-button>
+    <create-post-entry-point-wrapper id="create" style="display:block;width:90px">Create</create-post-entry-point-wrapper>
+  </reddit-header-large>
+
+  <div style="display:flex">
+    <flex-left-nav-container id="left-sidebar-container" style="display:block;width:270px">
+      <nav aria-label="Primary">
+        <faceplate-expandable-section-helper id="games-section" style="display:block">
+          <details><summary aria-controls="games_section">GAMES ON REDDIT</summary><devvit-games-drawer-item>Word game</devvit-games-drawer-item></details>
+        </faceplate-expandable-section-helper>
+        <faceplate-expandable-section-helper id="communities-section" style="display:block">
+          <details open><summary aria-controls="communities_section">COMMUNITIES</summary><a href="/r/cats/">r/cats</a></details>
+        </faceplate-expandable-section-helper>
+      </nav>
+      <nav aria-label="Reddit resources"><a href="https://ads.reddit.com/register" id="nav-advertise">Advertise</a></nav>
+    </flex-left-nav-container>
+
+    <main id="main-content" style="display:block;width:700px">
+      <shreddit-feed id="feed" style="display:block">
+        <!-- A post from a community you joined. -->
+        <article id="a-sub" data-h="300"><shreddit-post id="t3_sub" view-context="AggregateFeed" user-logged-in is-subscribed
+            subreddit-prefixed-name="r/cats" post-type="image" style="display:block;height:300px">
+          <template shadowrootmode="open"><slot name="credit-bar"></slot><slot name="title"></slot><slot name="post-media-container"></slot>
+            <rpl-action-bar id="bar-sub"><span>Vote</span> <faceplate-number id="score-sub">2.1K</faceplate-number> <faceplate-number>39</faceplate-number></rpl-action-bar></template>
+          <span slot="credit-bar">r/cats • 3 hr. ago</span>
+          <a slot="title" href="/r/cats/comments/1/">My cat found a box</a>
+          <div slot="post-media-container" id="media-sub" style="height:200px">picture</div>
+          <faceplate-screen-reader-content>Upvote Facebook</faceplate-screen-reader-content>
+          <div slot="related-community-recommendation"></div>
+          <faceplate-partial name="RelatedCommunityRecommendations_x" loading="programmatic" id="empty-partial"><template shadowrootmode="open"><div><slot></slot></div></template></faceplate-partial>
+        </shreddit-post></article>
+        <hr id="hr-sub">
+
+        <!-- A feed ad: its own element, straight in the feed. -->
+        <shreddit-ad-post id="ad" promoted ad-type="display" style="display:block;height:300px">
+          <span data-ad-click-location="promoted_label">Promoted</span> Buy our software
+        </shreddit-ad-post>
+        <hr id="hr-ad">
+
+        <!-- On your home feed, from a community you have not joined. -->
+        <article id="a-rec" data-h="300"><shreddit-post id="t3_rec" view-context="AggregateFeed" user-logged-in
+            subreddit-prefixed-name="r/dogs" post-type="text" style="display:block;height:200px">
+          <a slot="title" href="/r/dogs/comments/2/">A dog you might like</a>
+        </shreddit-post></article>
+        <hr id="hr-rec">
+
+        <!-- A video post, a NSFW post, and one a word block will catch. -->
+        <article id="a-video" data-h="300"><shreddit-post id="t3_video" view-context="AggregateFeed" user-logged-in is-subscribed
+            subreddit-prefixed-name="r/cats" post-type="video" style="display:block;height:200px">
+          <a slot="title" href="/r/cats/comments/3/">Cat video</a>
+          <div slot="post-media-container"><shreddit-player id="player"></shreddit-player></div>
+        </shreddit-post></article>
+        <hr>
+        <article id="a-nsfw" data-h="300"><shreddit-post id="t3_nsfw" view-context="AggregateFeed" user-logged-in is-subscribed nsfw
+            subreddit-prefixed-name="r/cats" post-type="image" style="display:block;height:200px">
+          <a slot="title" href="/r/cats/comments/4/">Spicy</a>
+        </shreddit-post></article>
+        <hr>
+        <article id="a-kw" data-h="300"><shreddit-post id="t3_kw" view-context="AggregateFeed" user-logged-in is-subscribed
+            subreddit-prefixed-name="r/cats" post-type="text" style="display:block;height:200px">
+          <a slot="title" href="/r/cats/comments/5/">Buy CRYPTO now</a>
+          <shreddit-post-overflow-menu></shreddit-post-overflow-menu>
+        </shreddit-post></article>
+        <hr>
+      </shreddit-feed>
+
+      <!-- A post's page: the ad under the post, ad slots in the thread, comments. -->
+      <shreddit-comments-page-ad id="cad" style="display:block;height:100px">Ad: something</shreddit-comments-page-ad>
+      <comment-composer-host id="composer" style="display:block">Join the conversation</comment-composer-host>
+      <section aria-label="Comments" id="comments-section">
+        <shreddit-comment-tree id="comment-tree" style="display:block">
+          <shreddit-comment id="comment" style="display:block">Nice cat
+            <shreddit-comment-action-row id="row" style="display:block"><template shadowrootmode="open"><faceplate-number id="comment-score">12</faceplate-number> Reply</template></shreddit-comment-action-row>
+          </shreddit-comment>
+          <shreddit-comment-tree-ad id="ctad" style="display:block;height:50px">Ad</shreddit-comment-tree-ad>
+        </shreddit-comment-tree>
+      </section>
+    </main>
+
+    <div id="right-sidebar-container" style="display:block;width:310px">
+      <div id="right-sidebar-contents">
+        <aside id="right-rail-experience-root" aria-label="Promotion"></aside>
+        <aside>
+          <shreddit-async-loader bundlename="sidebar_ad" id="sad-loader" style="display:block">
+            <shreddit-sidebar-ad id="sad" style="display:block;height:250px">Ad</shreddit-sidebar-ad>
+          </shreddit-async-loader>
+          <recent-posts id="recent" style="display:block">Recent posts</recent-posts>
+          <faceplate-partial name="RelatedCommunityRecommendations_qmZmnB" id="related" style="display:block">Related communities</faceplate-partial>
+        </aside>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

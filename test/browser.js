@@ -46,12 +46,12 @@ function findChrome() {
 }
 
 /* The preset list, read the same way the extension reads it. */
-function loadPresets() {
+function loadPresets(siteId) {
   const sandbox = { self: {} };
-  for (const file of ['src/common/sites.js', 'src/sites/facebook.js']) {
+  for (const file of ['src/common/sites.js', 'src/sites/facebook.js', 'src/sites/reddit.js']) {
     vm.runInNewContext(fs.readFileSync(path.join(root, file), 'utf8'), sandbox);
   }
-  return sandbox.self.BFX_SITES.get('facebook').presets;
+  return sandbox.self.BFX_SITES.get(siteId || 'facebook').presets;
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -90,14 +90,18 @@ async function until(fn, timeout = 3000) {
     const setState = fn => sw.evaluate(`self.BFX_STORE.update(${fn})`);
     const resetState = () => sw.evaluate('self.BFX_STORE.set(self.BFX_STORE.merge(null))');
 
-    /* Every facebook.com document comes from `served`; nothing else is fetched. */
+    /* Every facebook.com document comes from `served`, every reddit.com one
+     * from the Reddit fixture; nothing else is fetched. */
     let served = fs.readFileSync(path.join(fixtures, 'feed.html'), 'utf8');
+    const redditDoc = fs.readFileSync(path.join(fixtures, 'reddit.html'), 'utf8');
     const page = await browser.newPage();
     await page.setRequestInterception(true);
     page.on('request', req => {
       const url = new URL(req.url());
       if (/(^|\.)facebook\.com$/.test(url.hostname) && req.resourceType() === 'document') {
         req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: served });
+      } else if (/(^|\.)reddit\.com$/.test(url.hostname) && req.resourceType() === 'document') {
+        req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: redditDoc });
       } else if (url.protocol === 'http:' || url.protocol === 'https:') {
         req.abort();
       } else {
@@ -331,6 +335,68 @@ async function until(fn, timeout = 3000) {
       fb.custom.length === 1 && restored.keywords.terms[0] === 'crypto', JSON.stringify(restored));
     ok('no script errors', errors.length === 0, errors.join(' | '));
     fs.rmSync(tmp, { recursive: true, force: true });
+
+    /* -------------------------------------------------------------- reddit -- */
+    console.log('\nreddit.com in real Chrome');
+    await resetState();
+    /* The popup and options tabs above left this one in the background, where
+     * Chrome runs no animation frames, so the scan would never get its turn. */
+    await page.bringToFront();
+    await page.goto('https://www.reddit.com/', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#bfx-style');
+    /* An element inside a host's shadow root, by id. */
+    const shadowHidden = (host, inner) => page.evaluate((h, i) => {
+      const el = document.getElementById(h);
+      const t = el && el.shadowRoot && el.shadowRoot.getElementById(i);
+      return !!t && !t.checkVisibility();
+    }, host, inner);
+    const gone = async target => Array.isArray(target) ? shadowHidden(target[0], target[1]) : isHidden(target);
+    const redditIds = loadPresets('reddit').map(r => r.id);
+    ok('every Reddit selector parses in Chrome', (await page.evaluate(list => list.filter(sel => {
+      try { document.querySelectorAll(sel); return false; } catch (e) { return true; }
+    }), loadPresets('reddit').flatMap(r => r.css || []))).length === 0);
+    ok('feed ads go, with the line after them', await until(() => isHidden('ad')) && await isHidden('hr-ad'));
+    ok('sidebar ads go', await isHidden('sad'));
+    ok('ads under posts and in comment threads go', await isHidden('cad') && await isHidden('ctad'));
+    ok('a recommended post on Home goes, with its line', await until(() => isHidden('a-rec')) && await isHidden('hr-rec'));
+    ok('a post from a community you joined stays, with its line', !(await isHidden('a-sub')) && !(await isHidden('hr-sub')));
+    ok('the chat badge goes', await isHidden('chat-badge'));
+    ok('a shadow-root count is visible before its switch is on', !(await shadowHidden('t3_sub', 'score-sub')));
+
+    const redditOnly = ids => setState(`s => { const p = s.sites.reddit.presets; ${JSON.stringify(redditIds)}.forEach(k => { p[k] = false; }); ${ids.map(id => `p.${id} = true;`).join(' ')} }`);
+    const redditCases = [
+      ['counts', 'vote and comment counts inside shadow roots', [['t3_sub', 'score-sub'], ['row', 'comment-score']], ['a-sub', 'bar-sub']],
+      ['postActions', 'the vote / comment / share bar', [['t3_sub', 'bar-sub']], ['a-sub']],
+      ['comments', 'the comment thread and box', ['comment-tree', 'composer'], ['a-sub']],
+      ['media', 'the picture, not the post', ['media-sub'], ['a-sub']],
+      ['videoPosts', 'video posts, whole', ['a-video'], ['a-sub', 'a-kw']],
+      ['nsfw', 'NSFW posts', ['a-nsfw'], ['a-sub']],
+      ['leftSidebar', 'the left sidebar', ['left-sidebar-container'], ['feed']],
+      ['rightSidebar', 'the right sidebar', ['right-sidebar-container'], ['feed']],
+      ['recentPosts', 'recent posts', ['recent'], ['sad-loader']],
+      ['relatedCommunities', 'community suggestions', ['related'], ['recent']],
+      ['games', 'the games section and badge', ['games-section', 'games-badge'], ['communities-section']],
+      ['search', 'the search box', ['search'], ['chat']],
+      ['createPost', 'the Create button', ['create'], ['chat']],
+      ['chat', 'the chat button', ['chat'], ['create']],
+      ['advertise', 'the Advertise buttons', ['advertise', 'nav-advertise'], ['create']]
+    ];
+    for (const [id, what, hide, keep] of redditCases) {
+      await redditOnly([id]);
+      let hid = await until(async () => {
+        for (const g of hide) if (!(await gone(g))) return false;
+        return true;
+      });
+      let keeps = true;
+      for (const k of keep) if (await gone(k)) keeps = false;
+      await redditOnly([]);
+      const back = await until(async () => {
+        for (const g of hide) if (await gone(g)) return false;
+        return true;
+      });
+      ok(`reddit ${id}: hides ${what}, keeps the rest, and gives it back when off`, hid && keeps && back);
+    }
+    await resetState();
 
     /* ----------------------------------------------------------- snapshots -- */
     console.log('\nsaved Facebook pages (test/fixtures/snapshots)');

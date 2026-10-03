@@ -36,11 +36,24 @@
   }
 
   /* Neither Facebook's generated classes nor our own markers: a rule keyed on
-   * bfx-hidden would match everything already hidden, not the thing picked. */
+   * bfx-hidden would match everything already hidden, not the thing picked.
+   * A site styled with utility classes (Reddit's block, relative, px-md)
+   * turns classes off in its pack: they say how a thing looks, not what it
+   * is. */
   function stableClasses(el) {
+    var s = site();
+    if (s && s.picker && s.picker.classes === false) return [];
     return Array.prototype.filter.call(el.classList, function (c) {
       return !GENERATED_CLASS.test(c) && c.indexOf('bfx-') !== 0;
     });
+  }
+
+  /* Selectors that name what a thing is, so matching every one of them is
+   * the point ("every post's title"), however many there are. */
+  var SEMANTIC = {};
+
+  function isCustom(tag) {
+    return tag.indexOf('-') > 0;
   }
 
   /* Selectors for one element, best first. */
@@ -48,6 +61,7 @@
     var tag = el.tagName.toLowerCase();
     var out = [];
     var attr = function (name) { return el.getAttribute(name); };
+    var semantic = function (sel) { SEMANTIC[sel] = true; out.push(sel); };
 
     /* Not data-visualcompletion: its values (ignore, ignore-dynamic,
      * css-img ...) are shared by hundreds of unrelated elements. */
@@ -59,6 +73,26 @@
       if (attr('role')) out.push(tag + '[role=' + cssString(attr('role')) + ']' + label);
       out.push(tag + label);
       out.push(label);
+    }
+    /* Sites built from custom elements name their parts: the element's own
+     * tag (shreddit-comment-tree), or the slot a part fills in its host
+     * (shreddit-post > [slot="title"]). A pack lists its generic wrappers:
+     * `keys` says which attribute tells one use of a wrapper from another
+     * (faceplate-partial name="RecentPosts_x7Yz"), `generic` the tags that
+     * mean nothing on their own (faceplate-number). */
+    var hints = (site() && site().picker) || {};
+    var parent = el.parentElement;
+    if (attr('slot') && parent && isCustom(parent.tagName.toLowerCase())) {
+      semantic(parent.tagName.toLowerCase() + ' > [slot=' + cssString(attr('slot')) + ']');
+    }
+    var key = hints.keys && hints.keys[tag];
+    if (key && attr(key)) {
+      /* Names carry a per-build hash after the last underscore. */
+      var value = attr(key);
+      var hashed = /^(.+_)[A-Za-z0-9-]{4,8}$/.exec(value);
+      semantic(tag + '[' + key + (hashed ? '^=' + cssString(hashed[1]) : '=' + cssString(value)) + ']');
+    } else if (isCustom(tag) && !key && !/^bfx-/.test(tag) && !(hints.generic && hints.generic.test(tag))) {
+      semantic(tag);
     }
     if (tag === 'a' && attr('href') && attr('href').charAt(0) === '/') {
       var path = attr('href').split('?')[0];
@@ -93,7 +127,8 @@
     var own = candidates(el);
     for (var i = 0; i < own.length; i++) {
       var list = matches(own[i]);
-      if (list.length && Array.prototype.indexOf.call(list, el) !== -1 && list.length <= MAX_BROAD_MATCHES) {
+      if (list.length && Array.prototype.indexOf.call(list, el) !== -1 &&
+          (list.length <= MAX_BROAD_MATCHES || SEMANTIC[own[i]])) {
         return own[i];
       }
     }

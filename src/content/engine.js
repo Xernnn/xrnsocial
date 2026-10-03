@@ -67,7 +67,12 @@
   ].join('\n');
 
   function buildCss(s) {
-    var out = [HIDDEN + '{display:none !important}'];
+    var out = [
+      HIDDEN + '{display:none !important}',
+      /* Feeds that divide posts with <hr> (Reddit) would stack the lines of
+       * the posts around one that is gone. */
+      HIDDEN + ':not([' + NOTE + ']) + hr{display:none !important}'
+    ];
     if (!s.enabled) return out.join('\n');
     if (s.placeholders) out.push(PLACEHOLDER_CSS);
 
@@ -95,6 +100,57 @@
     });
 
     return out.join('\n');
+  }
+
+  /* ------------------------------------------------------ shadow roots -- */
+
+  /* Some sites keep parts of a post inside open shadow roots (Reddit's vote
+   * counts and action bar), where the page stylesheet cannot reach. A rule
+   * lists { host, css } pairs; each matching host gets one <style> of its own
+   * inside its shadow root, rewritten when the rules change and checked on
+   * every scan for hosts that are new or re-rendered. */
+  var shadowCss = {};       // host selector -> css from the rules that are on
+  var SHADOW_HOSTS = [];    // every host selector this site's rules use
+  if (site) {
+    site.presets.forEach(function (rule) {
+      (rule.shadow || []).forEach(function (sh) {
+        if (SHADOW_HOSTS.indexOf(sh.host) === -1) SHADOW_HOSTS.push(sh.host);
+      });
+    });
+  }
+
+  function collectShadow(s) {
+    var out = {};
+    if (!s.enabled) return out;
+    site.presets.forEach(function (rule) {
+      if (!s.presets[rule.id] || !rule.shadow) return;
+      rule.shadow.forEach(function (sh) {
+        out[sh.host] = (out[sh.host] || '') + sh.css + '\n';
+      });
+    });
+    return out;
+  }
+
+  function styleShadowRoots() {
+    SHADOW_HOSTS.forEach(function (host) {
+      var text = shadowCss[host] || '';
+      document.querySelectorAll(host).forEach(function (el) {
+        var root = el.shadowRoot;
+        if (!root) return;
+        var style = root.querySelector('style[data-bfx]');
+        if (!style) {
+          if (!text) return;
+          style = document.createElement('style');
+          style.setAttribute('data-bfx', '');
+          root.appendChild(style);
+        }
+        if (style.textContent !== text) style.textContent = text;
+      });
+    });
+  }
+
+  function hasShadowRules() {
+    return Object.keys(shadowCss).some(function (h) { return shadowCss[h]; });
   }
 
   /* --------------------------------------------------------- utilities -- */
@@ -577,6 +633,7 @@
     }
 
     runGlobalHeuristics(state);
+    styleShadowRoots();
     reassert();
     ensureStyle();
   }
@@ -607,7 +664,7 @@
 
   function needsObserver(s) {
     if (!s.enabled) return false;
-    if (jsRules.length || keywords.length) return true;
+    if (jsRules.length || keywords.length || hasShadowRules()) return true;
     return globalIds().some(function (id) { return s.presets[id]; });
   }
 
@@ -617,6 +674,42 @@
    * matches nothing where you can still see its target is the usual sign that
    * the site changed underneath it. Effect-only rules (style, no css or js)
    * have nothing to count and are left out. */
+  /* The popup's "3 here" should count things a person would have seen: not
+   * the empty slots a site keeps on every post for content it may load later
+   * (Reddit has one per post), not the divider line that goes with a hidden
+   * post, and not a match inside another match of the same rule. */
+  /* Something that draws: text, a picture or video, or a control. Custom
+   * elements may draw everything inside shadow roots, so look there too; a
+   * shadow root holding only wrappers and a <slot> (Reddit's loaders) is
+   * still empty. */
+  var DRAWS = 'img, video, iframe, svg, canvas, picture, input, textarea, select, button';
+  var some = function (list, fn) { return Array.prototype.some.call(list, fn); };
+  function shadowDraws(root, depth) {
+    if (root.querySelector(DRAWS)) return true;
+    return some(root.querySelectorAll('*'), function (c) {
+      if (c.localName === 'style' || c.localName === 'script') return false;
+      if (some(c.childNodes, function (t) { return t.nodeType === 3 && t.nodeValue.trim(); })) return true;
+      return depth < 2 && !!c.shadowRoot && shadowDraws(c.shadowRoot, depth + 1);
+    });
+  }
+  function hasContent(el) {
+    if (el.matches(DRAWS) || el.querySelector(DRAWS) || (el.textContent || '').trim()) return true;
+    if (el.shadowRoot && shadowDraws(el.shadowRoot, 0)) return true;
+    return some(el.querySelectorAll('*'), function (c) { return !!c.shadowRoot && shadowDraws(c.shadowRoot, 1); });
+  }
+
+  function countSeen(seen) {
+    var n = 0;
+    seen.forEach(function (el) {
+      if (el.localName === 'hr' || !hasContent(el)) return;
+      for (var p = el.parentElement; p; p = p.parentElement) {
+        if (seen.has(p)) return;
+      }
+      n++;
+    });
+    return n;
+  }
+
   function stats() {
     var out = { site: site ? site.id : null, presets: {}, custom: {}, keyword: 0 };
     if (!state || !state.enabled) return out;
@@ -638,7 +731,7 @@
           broken.push(sel);
         }
       });
-      out.presets[rule.id] = { count: seen.size, broken: broken };
+      out.presets[rule.id] = { count: countSeen(seen), broken: broken };
     });
 
     var path = location.pathname;
@@ -687,6 +780,8 @@
 
     css = buildCss(state);
     styleEl().textContent = css;
+    shadowCss = collectShadow(state);
+    styleShadowRoots();
 
     /* Anything hidden by a rule that is now off must come back. Cheap, and it
      * means toggling a switch is instantly visible instead of needing F5. */

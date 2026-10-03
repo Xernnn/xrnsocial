@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-BlockDistractXrn (formerly BlockFB) is a Manifest V3 Chrome/Edge extension that hides the distracting parts of social sites: presets, a point-and-click picker and keyword blocks. Facebook is done. Reddit, X, LinkedIn, Instagram, TikTok and Twitch are being added in that order, one rule pack per site. There is no build step, no bundler, and no runtime dependencies. `jsdom` and `puppeteer-core` are only used by the tests. `main` holds the last Facebook-only release; multi-site work is on the `multi-site` branch. Internal names keep the old `bfx` prefix (storage key `bfx`, `data-bfx-*` attributes, `BFX_*` globals); renaming them would reset users' settings.
+BlockDistractXrn (formerly BlockFB) is a Manifest V3 Chrome/Edge extension that hides the distracting parts of social sites: presets, a point-and-click picker and keyword blocks. Facebook and Reddit are done. X, LinkedIn, Instagram, TikTok and Twitch are being added in that order, one rule pack per site. There is no build step, no bundler, and no runtime dependencies. `jsdom` and `puppeteer-core` are only used by the tests. `main` holds the last Facebook-only release; multi-site work is on the `multi-site` branch. Internal names keep the old `bfx` prefix (storage key `bfx`, `data-bfx-*` attributes, `BFX_*` globals); renaming them would reset users' settings.
 
 ## Commands
 
@@ -47,7 +47,10 @@ A pack calls `BFX_SITES.register({...})` with:
   - `cardStop`: what `cardFor` must not swallow more than one of.
   - `skip(unit)`: units not to judge.
   - `redirect(view, loc)`.
-  - `picker.authorOf(post, cssString)`.
+  - `picker.authorOf(post, cssString)`: what picking a whole post means (posts from this author or community).
+  - `picker.classes: false`: never use classes. Set it for sites styled with utility classes (Reddit's `block`, `relative`), which say how a thing looks, not what it is.
+  - `picker.keys: { tag: attribute }`: generic wrapper elements and the attribute that tells one use from another (`faceplate-partial` → `name`). A trailing `_hash` in the value becomes a `^=` prefix.
+  - `picker.generic`: a regex of custom tags that mean nothing alone (`faceplate-number`). Every other custom tag, and `host > [slot="…"]` for a slotted part, is a "semantic" candidate the picker may use however many elements it matches.
 
 `api` (built in engine.js) gives packs `hide`, `HIDDEN`, `state()`, `generation()`, `firstLook`, `visibleText`, `readableText`, `headText`, `looksSponsored`, `referencedText`, `cardFor`, `climbTo`, `stripTitleCount`, `feedText`, `AD_WORD`, `AD_LABEL` and `INVISIBLE_CHARS`. Don't reach into engine internals from a pack.
 
@@ -55,7 +58,7 @@ Adding a site:
 1. Write the pack, following the live-check method below. Detection must come from measuring the logged-in site, never guessing.
 2. Add it to the five load-order places and the manifest.
 3. Add a fixture `test/fixtures/<id>.html` copied from the live structure with made-up text, plus jsdom and real-Chrome checks.
-4. Update the README's Sites table and verify live: hidden things stay hidden while scrolling and hovering, every switch toggles on and off, and risky combinations work.
+4. Write `test/live/probes/<id>.js` and verify live with `node test/live/check.js <id>` (ads stay hidden while scrolling and hovering, every switch on its own, risky combinations) and `node test/live/popup.js <id>`. Then update the README's Sites table and known limits, and this file's "What identifies things" paragraph for the site.
 
 ## Engine (`src/content/engine.js`)
 
@@ -68,6 +71,9 @@ How `apply()` works:
 - It bumps `generation`, rebuilds the sheet, and calls `unhideAll()`, so turning a rule off takes effect immediately.
 - Elements hidden by JS get **only attributes, never classes**: `data-bfx-hidden-by="<ruleId|keyword>"`, and the sheet's first rule is `[data-bfx-hidden-by]{display:none !important}`. React rewrites `className` whenever it re-renders an element (hover, scroll, new data). When hiding used a class, that silently un-hid ads on the live site; attributes React didn't set survive. The picker's page marker is `data-bfx-picking` for the same reason. Don't reintroduce class-based markers.
 - `hide()` also records the element in `hiddenEls`. On every scan, `reassert()` puts back any marker that was stripped from a still-connected element, and `ensureStyle()` re-inserts `#bfx-style` if the page dropped it. The tests and `stats()` rely on the attribute.
+- The sheet's second built-in rule hides an `<hr>` right after a hidden unit (Reddit divides posts with one), except after a unit showing a "show" bar.
+- Presets with `shadow: [{ host, css }]` style inside open shadow roots, where the page sheet can't reach (Reddit's counts and vote bar). `styleShadowRoots()` keeps one `<style data-bfx>` per matching host, rewritten on `apply()` and checked on every scan for new or re-rendered hosts. Shadow rules alone keep the observer running.
+- `stats()` counts what a person would have seen (`countSeen`/`hasContent`): no empty slots (Reddit keeps empty recommendation loaders on every post, some with a shadow root holding only a wrapper and a `<slot>`), no `<hr>`, and no match nested inside another match of the same rule.
 - With `placeholders` on, per-unit hides (except the ids in `SILENT`) also get a `data-bfx-note`. The placeholder CSS in `buildCss` turns these into a clickable bar. Clicking one sets `data-bfx-revealed`, and the scan skips that unit and everything inside it for the rest of the page's life.
 - Each element is judged at most once per generation, using the `__bfxGen` / `__bfxAdGen` / `__bfxSideGen` / `__bfxBarGen` expandos. `firstLook()` doesn't stamp a label while its text is still empty, because Facebook fills text in a frame later.
 
@@ -87,36 +93,53 @@ What identifies things on live Facebook, implemented in `src/sites/facebook.js` 
 - **Suggested posts**: a `[role="button"]` (Follow/Join) inside the unit's *first* `h4` (the title). A shared page post has its own Follow button further down, so don't look past the first `h4`.
 - **Recommendation carousels** (people you may know, group suggestions): a unit with no `h4` whose buttons repeat the same text. Count only text with letters, and ignore buttons inside comments. The Reels shelf has the same shape and is excluded via `/reel/` links. Facebook obfuscates the label with shuffled spans and hidden decoy letters, so `FUZZY` is a loose prefilter and `visibleText()`/`isVisible()` make the final call. `cardFor()` climbs from a label to the card-sized ancestor and must never hide a whole surface (feed, main, Stories tray, Marketplace grid).
 
+What identifies things on live Reddit, in `src/sites/reddit.js` (verified October 2026, signed in):
+- The feed is `shreddit-feed`; a post is `shreddit-feed > article` holding a `shreddit-post` whose attributes describe it (`subreddit-prefixed-name`, `post-type`, `nsfw`, `is-subscribed`, `view-context`, `permalink`, `comment-count`), followed by an `<hr>`.
+- **Ads** are their own elements, in every language: `shreddit-ad-post[promoted]` straight in the feed, `shreddit-sidebar-ad` (inside `shreddit-async-loader[bundlename="sidebar_ad"]`), and on a post's page `shreddit-comments-page-ad` and `shreddit-comment-tree-ad`. Not every post page carries them; the live check looks at two.
+- **Recommended posts**: signed in, posts from joined communities carry `is-subscribed`, rendered by the server. On Home (`/`, `/best`, `/hot`, `/new`, `/top`, `/rising`) a post without it was picked by Reddit. `recommendation-source="subscribed_personalized_sort"` is on joined-community posts too, so it is not a signal. On the test account every Home post was joined, so this was never seen hiding live.
+- Votes, comment counts and the vote/share bar are inside `shreddit-post`'s open shadow root (`rpl-action-bar`, which is `display: contents`, holding `faceplate-number`s); comment scores are inside `shreddit-comment-action-row`'s. No `::part` is exposed, hence `shadow` presets.
+- The left menu's sections are `details` whose `summary[aria-controls]` names them (`games_section`, `communities_section` …) whatever the language, inside `faceplate-expandable-section-helper`. Top bar parts are named elements (`reddit-search-large`, `create-post-entry-point-wrapper`, `reddit-chat-header-button`, `advertise-button`, `dynamic-badge`).
+- Wrappers like `faceplate-partial`/`faceplate-loader` (`name="RecentPosts_x7Yz"`, hash per build) are everywhere; select them by a `name^=` prefix.
+
 ## Selector rules
 
 Facebook's class names (`x1n2onr6`) and React ids (`:r7:`) change with every build. Never use them in presets or picker output. Use only `data-pagelet`, `data-visualcompletion`, `data-testid`, `role`, `aria-label`, and short `href` prefixes. The picker (`src/content/picker.js`) filters generated classes and ids with `GENERATED_CLASS`/`GENERATED_ID`. That includes Facebook's `html-div`/`html-h3` classes, which are on nearly every element. It never uses BlockFB's own `bfx-*` classes or `data-visualcompletion`, whose values are shared by hundreds of elements. Picking a whole post (`[aria-posinset]`) produces `authorOf()`: a "posts from this author" rule keyed on the first title link's href up to its query string. When an element has no stable attribute of its own, the picker anchors to the nearest ancestor that has one and adds an `nth-child` tail.
 
 Chrome rejects `:has()` nested inside `:has()`, but jsdom accepts it. Only `npm run test:browser` catches that, which is why "smallest box containing both X and Y" rules (like `postActions`) are JS heuristics. Custom selectors pass `store.validSelector()` before they reach the stylesheet, because one that doesn't parse could close its rule and inject CSS.
 
-Preset schema (in each `src/sites/<id>.js`): `{ id, group, label, desc, on?: true, css?: [selectors], style?: rawCss, js?: { kind, ...params }, behavior?: true }`. `on` marks a switch that is on by default. `behavior` marks a switch the engine implements directly by preset id (`noAutoplay` pauses videos started without a recent pointerdown or Enter/Space). Like effect-only presets, it has no count in `stats()`. Popup groups come from the order of `group` values. The README states Facebook's preset count (34) and default-on count (7). Update those numbers when you add presets.
+Preset schema (in each `src/sites/<id>.js`): `{ id, group, label, desc, on?: true, css?: [selectors], style?: rawCss, shadow?: [{ host, css }], js?: { kind, ...params }, behavior?: true }`. `on` marks a switch that is on by default. `behavior` marks a switch the engine implements directly by preset id (`noAutoplay` pauses videos started without a recent pointerdown or Enter/Space). Like effect-only presets, it has no count in `stats()`. Popup groups come from the order of `group` values. The README states each site's preset count and default-on count (Facebook 34 and 7, Reddit 23 and 6). Update those numbers when you add presets.
 
 ## Test harness quirks
 
 - jsdom has no layout, so `getBoundingClientRect` is mocked: width comes from text length, and **height comes from the fixture's `data-h` attribute** (default 24). Size-dependent logic (`cardFor`'s 90px and 85%-viewport thresholds, the badge 40px cap) needs `data-h` set on fixture elements.
 - jsdom's `:has()` support differs from Chrome's in both directions. The smoke test only *reports* selectors jsdom can't parse; the browser test asserts that Chrome parses all of them.
 - `test/fixtures/feed.html` is the current Facebook structure, copied from the live site with made-up text. Both suites load it: the smoke test's last section via `boot()`, and the browser test as the page served at facebook.com. Boxes carry inline sizes for Chrome and `data-h` for jsdom. The smoke test's inline `PAGE` is the older markup (`role="feed"`, `data-pagelet`), kept so the legacy hooks stay working. `test/fixtures/snapshots/*.html` are the user's saved Facebook pages. They are gitignored, served with `<script>` tags stripped, and checked only for "ad rules don't hide most of the feed".
+- `test/fixtures/reddit.html` uses declarative shadow roots (`<template shadowrootmode>`). Chrome attaches them at parse time; jsdom doesn't, so the smoke test's `withShadows()` attaches them by hand. The browser test serves this file at reddit.com.
+- In the browser test, a page left behind other tabs (the popup and options checks) gets no animation frames, so the rAF-debounced scan never runs. Call `page.bringToFront()` before a section that waits on JS hiding.
 - The smoke test does not load `main.js`, the popup, or the service worker. `chrome.*` is a minimal stub whose `onChanged` never fires, so tests call `BFX_ENGINE.apply()` directly and wait about one frame.
 
 ## Checking against live sites
 
-`test/live/lib.js` has the helpers this needs: connect, find a site's tab, restore a minimized window, evaluate in the content-script world, save and restore the person's settings, reload the extension, trusted scrolling, and per-site sign-in checks. `node test/live/status.js` lists which sites the test window is signed into. Put new probes beside them rather than in a temp folder, which can be wiped mid-session.
+`test/live/lib.js` has the helpers this needs: connect, open a work tab in a background window (`workTab`, so probes never steal focus from the person), restore a minimized window, evaluate in the content-script world, save and restore the person's settings, reload the extension, trusted scrolling, and per-site sign-in checks. Scripts beside it:
+- `node test/live/status.js`: which sites the test window is signed into.
+- `node test/live/check.js <site> [ads,switches,combos]` with `ONLY=id,id` to limit switches: the full live check, driven by `test/live/probes/<site>.js` (where each switch's targets are, as function sources run in the page). It judges only targets that were visible before a switch went on, because sites keep some of their own elements hidden. For speed it judges the extension's own script time from a CPU profile, not the page's long tasks: Reddit spends about 300 ms rendering each new batch of posts with every rule off.
+- `node test/live/popup.js <site>`: the real popup against a live tab.
+- `[EACH=1] node test/live/inspect.js <url> <snippet file> [scrolls]`: run a read-only snippet in the page, after every scroll with `EACH=1` (feeds drop posts that scroll away).
+- `node test/live/survey.js`: a structure survey of a page (custom elements, shadow hosts, test ids, aria labels, ad markers).
+Put new probes beside them rather than in a temp folder, which can be wiped mid-session.
 
 Fixtures only prove the code matches the fixtures. When rules "don't work", measure the real site before changing anything. Check that hidden things *stay* hidden while scrolling and hovering, not just that they get hidden: the class-wipe bypass only showed up over time. This is what worked:
 - Launch Chrome for Testing headed with `--user-data-dir=<scratch dir> --remote-debugging-port=9333 --load-extension=<repo> --disable-extensions-except=<repo>`. The user logs in themselves; never handle credentials. Then drive it with `puppeteer.connect({ browserURL })`.
 - Facebook ignores synthetic `window.scrollBy` for loading more posts; use `page.mouse.wheel`. A minimized window renders nothing and ignores input; restore it via `Browser.setWindowBounds`.
-- Reload the unpacked extension from a `chrome://extensions` tab with `chrome.management.setEnabled(id, false)` then `true`. `chrome.runtime.reload()` and `developerPrivate.reload` leave a command-line-loaded extension disabled.
-- To test the popup against a live tab, open `popup.html` with `chrome.tabs.create({ active: false })` in Facebook's window. Its `tabs.query({ active: true, currentWindow: true })` then returns the Facebook tab. `chrome.action.openPopup()` needs OS window focus, which Wayland refuses. The service worker sleeps; a storage change wakes it.
-- To call `BFX_ENGINE`/`BFX_STORE` in the page, find the content script's execution context via CDP `Runtime.executionContextCreated` (name contains "BlockFB") and evaluate there.
+- Reload the unpacked extension from a `chrome://extensions` tab with `chrome.management.setEnabled(id, false)` then `true` (`reloadExtension()`). That re-reads scripts but **not `manifest.json`**: after a manifest change (a new site's matches, a new content script) close the test browser and relaunch it with the same `--user-data-dir`; sign-ins are persistent cookies and survive. `chrome.runtime.reload()` and `developerPrivate.reload` leave a command-line-loaded extension disabled (the latter also hung).
+- To test the popup against a live tab, open `popup.html` with `chrome.tabs.create({ active: false })` in Facebook's window. Its `tabs.query({ active: true, currentWindow: true })` then returns the Facebook tab. `chrome.action.openPopup()` needs OS window focus, which Wayland refuses. The service worker sleeps and may not be there to evaluate in, so `popup.js` calls `chrome.tabs.create` from an extension page (options.html) instead. `Browser.getWindowForTarget`'s window id works as the `windowId`.
+- To call `BFX_ENGINE`/`BFX_STORE` in the page, find the content script's execution context via CDP `Runtime.executionContextCreated` (name contains "BlockDistractXrn") and evaluate there (`contentWorld()`).
+- `checkVisibility()` is false for `display: contents` elements (Reddit's `rpl-action-bar`) and for slotted children with no matching slot; probe the children instead.
 - Classify posts independently of the engine (joiner slot/label → ad, button in first `h4` → suggested), then compare with `data-bfx-hidden-by`. For a visual ground truth, element-screenshot each visible post's header block (`h4` up to the block holding the "·" line). Page-coordinate clips are off by the scroll position.
 - The test window may carry the user's own settings: save `BFX_STORE.get()` before a live test and `BFX_STORE.set()` it back afterwards, never reset to defaults.
 - Probe pitfalls: below about 1100 px of window width Facebook hides the left sidebar itself. The grey/blur effects switch off while the mouse hovers a post. The story viewer ignored automated Next clicks and arrow keys, so story ads stay untested. Don't open chat windows (that marks messages seen), and don't keep personal data outside the scratch profile.
 
 ## Other notes
 
-- The facebook/messenger tab-URL regex is duplicated in `service-worker.js` and `popup.js`. The host patterns are also in `manifest.json`.
+- Hostnames live in `src/common/sites.js` (`forHost`/`forUrl`, used by the engine, popup and service worker) and again in `manifest.json` (`host_permissions` and the content script's `matches`).
 - Firefox support would only need `background.service_worker` changed to `background.scripts`.

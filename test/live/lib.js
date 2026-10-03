@@ -42,14 +42,26 @@ async function tabFor(browser, siteId, url) {
   return page;
 }
 
+/* A tab of our own in a separate window opened in the background, so probes
+ * never pull focus from whatever the person is doing in the test window. */
+async function workTab(browser, url) {
+  const tag = 'about:blank#bfx-' + Math.random().toString(36).slice(2);
+  const session = await browser.target().createCDPSession();
+  await session.send('Target.createTarget', { url: tag, newWindow: true, background: true });
+  const target = await browser.waitForTarget(t => t.url() === tag, { timeout: 10000 });
+  const page = await target.page();
+  if (url) await page.goto(url, { waitUntil: 'domcontentloaded' }).catch(() => {});
+  return page;
+}
+
 /* A minimized or hidden window renders nothing and ignores input. */
-async function ensureVisible(page) {
+async function ensureVisible(page, opts) {
   const c = await page.createCDPSession();
   const { windowId, bounds } = await c.send('Browser.getWindowForTarget');
   if (bounds.windowState === 'minimized') {
     await c.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal' } });
   }
-  await page.bringToFront();
+  if (!opts || opts.focus !== false) await page.bringToFront();
   await sleep(400);
 }
 
@@ -88,7 +100,9 @@ async function withSettingsRestored(page, fn) {
 
 /* Reload the unpacked extension so code edits take effect. developerPrivate
  * reload and chrome.runtime.reload() leave a command-line-loaded extension
- * disabled; switching it off and on re-reads the files from disk. */
+ * disabled; switching it off and on re-reads the scripts from disk, but not
+ * manifest.json: after changing the manifest (a new site's matches, a new
+ * content script) restart the test browser with the same --user-data-dir. */
 async function reloadExtension(browser) {
   const tab = await browser.newPage();
   await tab.goto('chrome://extensions/');
@@ -129,4 +143,4 @@ async function scroll(page, steps, dy, pause) {
   }
 }
 
-module.exports = { ROOT, sleep, sites, connect, tabFor, ensureVisible, contentWorld, withSettingsRestored, reloadExtension, logins, scroll };
+module.exports = { ROOT, sleep, sites, connect, tabFor, workTab, ensureVisible, contentWorld, withSettingsRestored, reloadExtension, logins, scroll };

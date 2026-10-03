@@ -12,7 +12,8 @@ Nothing leaves your browser: no network requests, no analytics, no accounts.
 | site | status |
 | --- | --- |
 | Facebook | done — checked against the live site, October 2026 |
-| Reddit, X, LinkedIn, Instagram, TikTok, Twitch | being added, one at a time |
+| Reddit | done — checked against the live site, October 2026 |
+| X, LinkedIn, Instagram, TikTok, Twitch | being added, one at a time |
 
 Each site has its own switches and picked rules, and can be switched off on
 its own from the popup. The pause switch, the word list and the "show" bars
@@ -37,9 +38,19 @@ Inside posts, Sidebars, Top bar, Chat, Effects). Seven are on by default: the
 three ad rules, suggested posts, "people you may know", Reels, and the red
 unread badges. Changes apply instantly in every open Facebook tab, no reload.
 
-With a Facebook tab open, each active rule shows how much it matched on that
-page: **3 here**, or **none here** when nothing matched. "None here" is often
-just a page without that thing on it — but if you can still see it, Facebook
+On Reddit, 23 switches in the same groups. Six are on by default: promoted
+posts, sidebar ads, ads in comment threads, recommended posts on your home
+feed, community suggestions, and the red unread badges. Vote and comment
+counts and the vote bar are drawn inside Reddit's own components, out of reach
+of an ordinary stylesheet; those switches put a small style into each one.
+**Recommended posts** only acts on Home, and only signed in: a post there
+from a community you haven't joined is one Reddit chose for you.
+
+With a supported site's tab open, each active rule shows how much it matched on that
+page: **3 here**, or **none here** when nothing matched. Only things you would
+have seen count — not the empty slots a site keeps on every post for content
+it might load later. "None here" is often
+just a page without that thing on it — but if you can still see it, the site
 has changed and the rule needs repairing with the picker. A selector Chrome
 rejects outright is marked **broken**.
 
@@ -66,7 +77,7 @@ feed's text rules — and click one to bring that post back. Ads never leave one
 restores one. Restoring checks the file first and skips anything malformed.
 
 **The picker** — click *Hide something by clicking it*, or press
-`Alt+Shift+H` on a Facebook tab:
+`Alt+Shift+H` on a supported site's tab:
 
 | key | what it does |
 | --- | --- |
@@ -79,7 +90,9 @@ restores one. Restoring checks the file first and skips anything malformed.
 Pick a whole post (press `↑` until the box covers it) and the rule becomes
 **posts from that page, person or group**, keyed on the author link in the
 post's title. A post itself can't be picked any other way: Facebook rebuilds
-and renumbers the feed as you scroll.
+and renumbers the feed as you scroll. On Reddit, a whole post means **posts
+from that community**, and a part of a post (its title, picture, the line
+with the community name) means that part of every post.
 
 `Alt+Shift+B` pauses and resumes every rule at once; the toolbar icon shows
 **off** while paused.
@@ -172,7 +185,7 @@ Phrases are only a fallback now (paid partnerships and friend activity rely
 on them). English comes from Facebook itself; Vietnamese, Spanish, Portuguese,
 French, German, Italian and Indonesian are best-effort translations, all tried
 at once and only against a post's header — never its body — so a phrase cannot
-misfire on what someone wrote. Corrections go in `src/common/presets.js`.
+misfire on what someone wrote. Corrections go in `src/sites/facebook.js`.
 
 ## Known limits
 
@@ -201,6 +214,14 @@ misfire on what someone wrote. Corrections go in `src/common/presets.js`.
   autoplay was already off.
 - **Reels opened inside Facebook** (not by loading a URL) are redirected within
   a second, so the first moment may play.
+- **Reddit: the picker can't reach inside Reddit's components.** The vote
+  buttons, counts and share button live inside each post's shadow root;
+  pointing at them picks the whole post. Use the switches for those.
+- **Reddit: recommended posts were not seen live.** On the account it was
+  tested with, every post on Home came from a joined community, so the rule
+  had nothing to hide; it is checked against the fixture. Ads in feeds,
+  sidebars and comment threads were checked live, including that they stay
+  hidden while you scroll and hover.
 - **Firefox** would need the background section changed from `service_worker`
   to `scripts`; everything else is compatible.
 
@@ -210,6 +231,7 @@ misfire on what someone wrote. Corrections go in `src/common/presets.js`.
 manifest.json
 src/common/sites.js         the site list, and the registry rule packs join
 src/sites/facebook.js       Facebook's switches and detection (one file per site)
+src/sites/reddit.js         Reddit's
 src/common/storage.js       one key in chrome.storage.local, shared everywhere
 src/content/engine.js       stylesheet builder + observer, driven by the site's pack
 src/content/picker.js       overlay, and the selector generator
@@ -220,6 +242,7 @@ src/options/               backup and restore
 test/smoke.js              runs the real content scripts against a mock DOM
 test/browser.js            loads the extension into real Chrome
 test/fixtures/             pages for the browser test, and your own snapshots
+test/live/                 checks against the signed-in sites (see CLAUDE.md)
 ```
 
 `npm test` builds a fake Facebook page in jsdom, applies the engine to it, and
@@ -228,7 +251,8 @@ switching a rule off brings things back, and the picker's selectors resolve to
 the elements they were generated from.
 
 `npm run test:browser` loads the unpacked extension into Chrome for Testing
-and serves fixture pages at `https://www.facebook.com/`, so the content scripts
+and serves fixture pages at `https://www.facebook.com/` and
+`https://www.reddit.com/`, so the content scripts
 run exactly as they do on the real site. It checks what jsdom cannot: that
 Chrome accepts every selector (jsdom is more lenient about `:has()`), the real
 CSS cascade, settings reaching open tabs, reel redirects, the popup, and
