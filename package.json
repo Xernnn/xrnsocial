@@ -5,9 +5,11 @@
   "description": "Chrome extension that makes every part of Facebook toggleable.",
   "scripts": {
     "test": "node test/smoke.js",
+    "test:browser": "node test/browser.js",
     "zip": "rm -f blockfb.zip && zip -r blockfb.zip manifest.json icons src -x '*.DS_Store'"
   },
   "devDependencies": {
-    "jsdom": "^24.0.0"
+    "jsdom": "^24.0.0",
+    "puppeteer-core": "^25.12.0"
   }
 }

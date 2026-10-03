@@ -6,6 +6,7 @@ var GROUPS = window.BFX_GROUPS;
 
 var state = null;
 var tab = null;           // active Facebook tab, if any
+var stats = null;         // what each rule matches on that tab
 var el = {
   master: document.getElementById('master'),
   status: document.getElementById('status'),
@@ -16,12 +17,30 @@ var el = {
   filter: document.getElementById('filter'),
   kwEnabled: document.getElementById('kwEnabled'),
   kwTerms: document.getElementById('kwTerms'),
+  kwCount: document.getElementById('kwCount'),
+  placeholders: document.getElementById('placeholders'),
+  backup: document.getElementById('backup'),
   reset: document.getElementById('reset'),
   hidden: document.getElementById('hidden')
 };
 
-function save() {
-  return store.set(state).then(render);
+/* Every write is a read-modify-write against storage, never a save of this
+ * popup's copy: the keyboard shortcut or another window may have changed
+ * settings since the popup opened. */
+function mutate(fn) {
+  return store.update(fn).then(function (next) {
+    state = next;
+    render();
+    refreshStats();
+  });
+}
+
+function mutateRule(id, fn) {
+  return mutate(function (s) {
+    s.custom.forEach(function (r) {
+      if (r.id === id) fn(r);
+    });
+  });
 }
 
 function node(tag, cls, text) {
@@ -53,6 +72,42 @@ function clickTogglesSwitch(row, sw) {
   });
 }
 
+function plural(n, word) {
+  return n + ' ' + word + (n === 1 ? '' : 's');
+}
+
+/* ------------------------------------------------------------- health -- */
+
+/* How much a rule matched on the open Facebook tab. "None here" is often
+ * just a page without that thing on it, so it is worded as a hint, not an
+ * alarm; only a selector Chrome rejects is called broken. */
+function healthChip(stat) {
+  if (!stat) return null;
+  var broken = stat.broken || [];
+  var chip;
+  if (stat.offPage) {
+    chip = node('span', 'chip zero', 'other page');
+    chip.title = 'Scoped to a different page, so it does nothing here.';
+  } else if (broken.length && !stat.count) {
+    chip = node('span', 'chip bad', 'broken');
+    chip.title = 'Chrome rejects this selector, so it can never match:\n' + broken.join('\n');
+  } else if (!stat.count) {
+    chip = node('span', 'chip zero', 'none here');
+    chip.title = 'Nothing on this page matched. That is fine if there is nothing to hide here. ' +
+      'If you can still see it, Facebook probably changed: hide it with the picker to make a rule that works.';
+  } else {
+    chip = node('span', 'chip' + (broken.length ? ' warn' : ''), stat.count + ' here');
+    chip.title = plural(stat.count, 'element') + ' matched on this page.' +
+      (broken.length ? '\nSome of its selectors are rejected by Chrome:\n' + broken.join('\n') : '');
+  }
+  return chip;
+}
+
+function liveStat(kind, id) {
+  if (!stats || !state.enabled) return null;
+  return stats[kind] && stats[kind][id];
+}
+
 /* ------------------------------------------------------------ presets -- */
 
 function renderPresets() {
@@ -71,12 +126,14 @@ function renderPresets() {
     rules.forEach(function (rule) {
       var row = node('div', 'row');
       var text = node('div', 'row-text');
-      text.appendChild(node('b', null, rule.label));
+      var title = node('b', null, rule.label);
+      var chip = state.presets[rule.id] && healthChip(liveStat('presets', rule.id));
+      if (chip) title.appendChild(chip);
+      text.appendChild(title);
       if (rule.desc) text.appendChild(node('em', null, rule.desc));
       row.appendChild(text);
       var sw = makeSwitch(state.presets[rule.id], function (on) {
-        state.presets[rule.id] = on;
-        save();
+        mutate(function (s) { s.presets[rule.id] = on; });
       });
       row.appendChild(sw);
       clickTogglesSwitch(row, sw);
@@ -110,7 +167,10 @@ function renderCustom() {
     var row = node('div', 'custom-row');
 
     var text = node('div', 'row-text');
-    text.appendChild(node('b', null, rule.label || 'Custom rule'));
+    var title = node('b', null, rule.label || 'Custom rule');
+    var chip = rule.enabled !== false && healthChip(liveStat('custom', rule.id));
+    if (chip) title.appendChild(chip);
+    text.appendChild(title);
     text.appendChild(node('code', null, rule.selector));
 
     var scope = node('select', 'scope');
@@ -121,22 +181,22 @@ function renderCustom() {
       scope.appendChild(opt);
     });
     scope.addEventListener('change', function () {
-      rule.scope = scope.value;
-      save();
+      var value = scope.value;
+      mutateRule(rule.id, function (r) { r.scope = value; });
     });
     text.appendChild(scope);
     row.appendChild(text);
 
     row.appendChild(makeSwitch(rule.enabled !== false, function (on) {
-      rule.enabled = on;
-      save();
+      mutateRule(rule.id, function (r) { r.enabled = on; });
     }));
 
     var del = node('button', 'del', '×');
     del.title = 'Delete this rule';
     del.addEventListener('click', function () {
-      state.custom = state.custom.filter(function (r) { return r.id !== rule.id; });
-      save();
+      mutate(function (s) {
+        s.custom = s.custom.filter(function (r) { return r.id !== rule.id; });
+      });
     });
     row.appendChild(del);
 
@@ -146,8 +206,9 @@ function renderCustom() {
 
 /* --------------------------------------------------------------- shell -- */
 
+/* Stored settings can hold ids of presets that no longer exist. */
 function countOn() {
-  var presets = Object.keys(state.presets).filter(function (k) { return state.presets[k]; }).length;
+  var presets = PRESETS.filter(function (r) { return state.presets[r.id]; }).length;
   var custom = state.custom.filter(function (r) { return r.enabled !== false; }).length;
   return presets + custom;
 }
@@ -155,14 +216,33 @@ function countOn() {
 function render() {
   el.master.checked = state.enabled;
   el.status.textContent = state.enabled
-    ? countOn() + ' rule' + (countOn() === 1 ? '' : 's') + ' active'
+    ? plural(countOn(), 'rule') + ' active'
     : 'paused — nothing is hidden';
   el.kwEnabled.checked = state.keywords.enabled;
   if (document.activeElement !== el.kwTerms) {
     el.kwTerms.value = (state.keywords.terms || []).join('\n');
   }
+  el.kwCount.textContent = stats && state.enabled && state.keywords.enabled
+    ? plural(stats.keyword, 'post') + ' hidden on this page.'
+    : '';
+  el.placeholders.checked = !!state.placeholders;
   renderPresets();
   renderCustom();
+}
+
+/* Ask the Facebook tab what each rule matched. After a change, wait for the
+ * tab to receive it and rescan before asking. */
+function refreshStats(delay) {
+  if (!tab) return;
+  setTimeout(function () {
+    chrome.tabs.sendMessage(tab.id, { type: 'bfx:status' }, function (res) {
+      void chrome.runtime.lastError;   // tab predates install; reload fixes it
+      if (!res || !res.ok) return;
+      stats = res.stats || null;
+      el.hidden.textContent = res.hidden + ' hidden on this page';
+      if (state) render();
+    });
+  }, delay == null ? 250 : delay);
 }
 
 function switchTab(name) {
@@ -179,26 +259,31 @@ document.querySelectorAll('.tab').forEach(function (t) {
 });
 
 el.master.addEventListener('change', function () {
-  state.enabled = el.master.checked;
-  save();
+  var on = el.master.checked;
+  mutate(function (s) { s.enabled = on; });
 });
 
 el.filter.addEventListener('input', renderPresets);
 
 el.kwEnabled.addEventListener('change', function () {
-  state.keywords.enabled = el.kwEnabled.checked;
-  save();
+  var on = el.kwEnabled.checked;
+  mutate(function (s) { s.keywords.enabled = on; });
 });
 
 var kwTimer = null;
 el.kwTerms.addEventListener('input', function () {
   clearTimeout(kwTimer);
   kwTimer = setTimeout(function () {
-    state.keywords.terms = el.kwTerms.value.split('\n')
+    var terms = el.kwTerms.value.split('\n')
       .map(function (s) { return s.trim(); })
       .filter(Boolean);
-    store.set(state);
+    mutate(function (s) { s.keywords.terms = terms; });
   }, 400);
+});
+
+el.placeholders.addEventListener('change', function () {
+  var on = el.placeholders.checked;
+  mutate(function (s) { s.placeholders = on; });
 });
 
 el.pick.addEventListener('click', function () {
@@ -212,15 +297,26 @@ el.pick.addEventListener('click', function () {
   });
 });
 
+/* A file picker opened from a popup closes the popup on some platforms, so
+ * backup and restore live on the options page. */
+el.backup.addEventListener('click', function () {
+  chrome.runtime.openOptionsPage();
+});
+
 el.reset.addEventListener('click', function () {
   if (!confirm('Delete every rule and go back to the defaults?')) return;
-  state = store.merge(null);
-  save();
+  mutate(function () { return store.merge(null); });
 });
 
 /* ---------------------------------------------------------------- init -- */
 
 store.get().then(function (s) {
+  state = s;
+  render();
+});
+
+/* The shortcut, the picker or another window changed something. */
+store.onChange(function (s) {
   state = s;
   render();
 });
@@ -232,10 +328,5 @@ chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
     return;
   }
   tab = t;
-  chrome.tabs.sendMessage(t.id, { type: 'bfx:status' }, function (res) {
-    void chrome.runtime.lastError;
-    if (res && res.ok) {
-      el.hidden.textContent = res.hidden + ' element' + (res.hidden === 1 ? '' : 's') + ' hidden on this page';
-    }
-  });
+  refreshStats(0);
 });

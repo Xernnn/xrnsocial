@@ -1,0 +1,194 @@
+<!doctype html>
+<!-- facebook.com's home feed as it was built in October 2026, cut down to the
+     parts BlockFB keys on. The structure is copied from the live site; every
+     name and line of text is made up. Loaded by test/smoke.js (jsdom) and
+     test/browser.js (real Chrome), so boxes carry an inline height for Chrome
+     and a data-h height for jsdom's fake layout. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>(3) Facebook</title></head>
+<body style="margin:0;font:15px sans-serif">
+  <div role="banner" style="height:56px">
+    <label id="searchbox" style="display:inline-block;width:240px;height:40px"><input type="search" aria-label="Search Facebook" placeholder="Search Facebook"></label>
+    <div role="navigation" style="display:inline-block">
+      <a aria-label="Home" href="/">Home</a>
+      <a aria-label="Reels" href="/reel/?s=tab" id="nav-reels">Reels</a>
+      <a aria-label="Marketplace" href="/marketplace/">Marketplace</a>
+    </div>
+    <div aria-label="Messenger, 1 unread" role="button" id="messenger" style="display:inline-block;width:40px;height:40px">m</div>
+    <div aria-label="Notifications, 3 unread" role="button" id="bell" style="display:inline-block;width:40px;height:40px">n</div>
+    <!-- The red badge: a screen-reader-hidden copy of the bell. -->
+    <div aria-label="Notifications, 3 unread" role="button" aria-hidden="true" tabindex="-1" id="badge" data-h="19"
+         style="display:inline-block;width:19px;height:19px;background:#e41e3f"><span id="badge-n">3</span></div>
+  </div>
+
+  <div role="navigation" aria-label="Shortcuts" style="width:300px">
+    <ul>
+      <li id="meta-ai-row"><a role="link" href="https://l.facebook.com/l.php?u=https%3A%2F%2Fwww.meta.ai%2F">Meta AI</a></li>
+      <li id="friends-row"><a role="link" href="/friends/">Friends</a></li>
+    </ul>
+  </div>
+
+  <div role="main" style="width:680px">
+    <div aria-label="Create a post" role="region" id="composer" style="height:62px" data-h="62">What's on your mind?</div>
+    <div aria-label="Stories" role="region" data-focus-target="stories_tray" id="stories" style="height:192px" data-h="192">stories</div>
+    <div><div>
+    <h3>Feed posts</h3>
+    <div id="feedbox">
+
+      <!-- An ordinary post: decoys, title, timestamp label, body, album, action bar. -->
+      <div><div aria-posinset="1" id="u-organic" style="min-height:300px" data-h="300">
+        <div aria-hidden="true" style="position:absolute;left:-9999px"><blockquote><span dir="auto"><span>Facebook</span><span>Facebook</span><span>Facebook</span></span></blockquote></div>
+        <a role="link" href="/dana" aria-label="Dana Example"><div data-visualcompletion="ignore"><div aria-hidden="false"><div>Online status indicator</div><div>Active</div></div></div></a>
+        <div data-ad-rendering-role="profile_name"><h4><a role="link" href="/dana">Dana Example</a></h4></div>
+        <div><a role="link" href="/dana/posts/1"><span><span aria-labelledby="lbl-ago"><span></span></span></span></a> · Public</div>
+        <div data-ad-preview="message" data-ad-comet-preview="message" data-ad-rendering-role="story_message">Lovely day at the lake, people you may know were there</div>
+        <div id="album" style="padding-top:50%;position:relative">
+          <a role="link" href="https://www.facebook.com/photo/?fbid=1" style="position:absolute;inset:0"><img alt="A lake" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" style="width:100%;height:100%"></a>
+        </div>
+        <div id="bar">
+          <div><div aria-label="Like" role="button"><div data-ad-rendering-role="like_button"></div><span dir="auto" id="like-count">12</span></div></div>
+          <div><div aria-label="Leave a comment" role="button"><div data-ad-rendering-role="comment_button"></div><span dir="auto">3</span></div></div>
+          <div><div aria-label="Send this to friends or post it on your profile." role="button"><div data-ad-rendering-role="share_button"></div><span dir="auto">1</span></div></div>
+          <span aria-label="See who reacted to this" role="toolbar" id="reactions"><span aria-label="Like: 12 people" role="button">+</span></span>
+        </div>
+      </div></div>
+
+      <!-- An ad: the timestamp slot starts with a word joiner and its label reads "Ad". -->
+      <div><div aria-posinset="2" id="u-ad" style="height:300px" data-h="300">
+        <div data-ad-rendering-role="profile_name"><h4><a role="link" href="/brand"><b><span>Brand Co</span></b></a></h4></div>
+        <div><a role="link" href="#?ad" target="_blank">&#x2060;<span><span aria-labelledby="lbl-ad"><span></span></span></span></a> · Public</div>
+        <div data-ad-preview="message">Buy our thing</div>
+        <div aria-label="Send message" role="button">Send message</div>
+      </div></div>
+
+      <!-- An ad caught by its label alone (no word joiner). -->
+      <div><div aria-posinset="3" id="u-ad-label" style="height:300px" data-h="300">
+        <h4><a role="link" href="/shop">Shop Co</a></h4>
+        <div><a role="link" href="#?ad"><span><span aria-labelledby="lbl-ad"><span></span></span></span></a></div>
+        <div data-ad-preview="message">Sale now on</div>
+      </div></div>
+
+      <!-- No joiner and no label yet: Facebook attaches the label on scroll. -->
+      <div><div aria-posinset="4" id="u-ad-late" style="height:300px" data-h="300">
+        <h4><a role="link" href="/late">Late Label Co</a></h4>
+        <div><a role="link" href="#?ad"><span><span id="late-ref"><span></span></span></span></a></div>
+        <div data-ad-preview="message">Arrives unlabelled</div>
+      </div></div>
+
+      <!-- An issue ad still spells it out. -->
+      <div><div aria-posinset="5" id="u-issue" style="height:300px" data-h="300">
+        <h4><a role="link" href="/insure">Insure Co</a></h4>
+        <span dir="auto">Sponsored</span> · <span dir="auto">Paid for by Insure Co</span>
+        <div data-ad-preview="message">Cover for everyone</div>
+      </div></div>
+
+      <!-- Suggested: a Follow button inside the title. -->
+      <div><div aria-posinset="6" id="u-sug" style="height:300px" data-h="300">
+        <h4><a role="link" href="/fanpage">Fan Page</a> · <span><div role="button"><span>Follow</span></div></span></h4>
+        <div data-ad-preview="message">You might like this</div>
+      </div></div>
+
+      <!-- A friend sharing a page's post: the page's title further down has
+           its own Follow button, and must not count. -->
+      <div><div aria-posinset="7" id="u-shared" style="height:300px" data-h="300">
+        <h4><a role="link" href="/eli">Eli Example</a></h4>
+        <div data-ad-preview="message">Look at this</div>
+        <div><h4><a role="link" href="/somepage">Some Page</a> · <div role="button"><span>Follow</span></div></h4>The shared post</div>
+      </div></div>
+
+      <!-- People you may know, in Vietnamese: no title, the same button on every card. -->
+      <div><div aria-posinset="8" id="u-pymk" style="height:300px" data-h="300">
+        <h3>Những người bạn có thể biết</h3>
+        <div>Ann <div role="button"><span>Thêm bạn bè</span></div></div>
+        <div>Ben <div role="button"><span>Thêm bạn bè</span></div></div>
+      </div></div>
+
+      <!-- Group suggestions, under a heading the phrase list does not know. -->
+      <div><div aria-posinset="9" id="u-groups" style="height:300px" data-h="300">
+        <span>Your group suggestions</span>
+        <div>Hikers <div role="button"><span>Join group</span></div><div role="button"><span>Remove</span></div></div>
+        <div>Cooks <div role="button"><span>Join group</span></div><div role="button"><span>Remove</span></div></div>
+      </div></div>
+
+      <!-- The Reels shelf. -->
+      <div><div aria-posinset="10" id="u-reels" style="height:300px" data-h="300">
+        <h3>Reels</h3>
+        <a href="/reel/111/" aria-label="Reel by Ann" id="reel-link">reel one</a>
+        <a href="/reel/222/" aria-label="Reel by Ben">reel two</a>
+      </div></div>
+
+      <!-- A post a word block will catch. -->
+      <div><div aria-posinset="11" id="u-kw" style="height:300px" data-h="300">
+        <h4><a role="link" href="/hal">Hal Example</a></h4>
+        <div data-ad-preview="message">Buy CRYPTO now</div>
+      </div></div>
+
+      <!-- A video post. -->
+      <div><div aria-posinset="13" id="u-video" style="height:300px" data-h="300">
+        <h4><a role="link" href="/vic">Vic Example</a></h4>
+        <div data-video-id="1"><video id="video" muted playsinline style="width:320px;height:180px"></video></div>
+      </div></div>
+
+      <!-- Friend activity: it reached you because a friend was tagged. -->
+      <div><div aria-posinset="14" id="u-tagged" style="height:300px" data-h="300">
+        <span>Ann Example was tagged.</span>
+        <h4><a role="link" href="/cara">Cara Example</a> is with Ann Example</h4>
+        <div data-ad-preview="message">Party!</div>
+      </div></div>
+
+      <!-- An empty shell: a post not rendered yet, or scrolled away. -->
+      <div><div aria-posinset="12" id="u-shell" data-h="300"></div></div>
+
+      <!-- A post whose link merely starts with a word joiner (pasted text): not an ad. -->
+      <div><div aria-posinset="15" id="u-pasted" style="height:300px" data-h="300">
+        <h4><a role="link" href="/pat">Pat Example</a></h4>
+        <div><a role="link" href="https://example.com/">&#x2060;look at this</a></div>
+      </div></div>
+
+      <div aria-label="Loading..." role="progressbar" id="loading" style="height:200px" data-h="200"></div>
+    </div>
+    </div></div>
+
+    <!-- A Marketplace-style grid: one ad marked by the word joiner, one by a
+         visible "Ad" (after a zero-width space), between two listings. -->
+    <div id="mp-grid" data-h="260" style="display:flex;gap:8px;height:260px">
+      <div id="mp-1" data-h="250" style="width:160px;height:250px"><a role="link" href="/marketplace/item/1/">Bike, $40</a></div>
+      <div id="mp-ad" data-h="250" style="width:160px;height:250px"><div>Snack Co</div><div>New flavour</div>
+        <a role="link" href="#?ad">&#x2060;<span><span><span></span></span></span></a></div>
+      <div id="mp-ad2" data-h="250" style="width:160px;height:250px"><div>Car Co</div><div>Drive today</div><span dir="auto">&#x200b;Ad</span></div>
+      <div id="mp-2" data-h="250" style="width:160px;height:250px"><a role="link" href="/marketplace/item/2/">Chair, $15</a></div>
+    </div>
+  </div>
+
+  <div role="complementary" style="width:300px">
+    <div id="side-section"><div class="html-div"><span><h3 class="html-h3">Sponsored&#x200b;</h3></span></div><div id="side-ad">an advert</div></div>
+    <div data-visualcompletion="ignore-dynamic" id="contacts">
+      <div class="html-div"><h3 class="html-h3">Contacts</h3></div>
+      <ul data-visualcompletion="ignore-late-mutation">
+        <li id="meta-ai-contact"><a role="link" href="/messages/t/36327,2227039302/"><i aria-label="Meta AI profile photo" role="img"></i>Meta AI</a></li>
+        <li><a aria-label="Ann Example, Active" role="link" href="/messages/t/1">
+          <div aria-hidden="true"><div id="dot"><span data-visualcompletion="ignore"><div>Online status indicator</div></span><div role="none" data-visualcompletion="ignore" style="width:9px;height:9px;background:#31a24c"></div></div><div>Active</div></div>
+          Ann Example
+        </a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div role="button" aria-label="Open chat with Ann Example" id="chathead" style="position:fixed;right:10px;bottom:10px;width:48px;height:48px">A</div>
+
+  <!-- A post opened from its comment button. -->
+  <div role="dialog" id="dialog">
+    <div aria-posinset="1" id="dialog-post" data-h="400">
+      <div>Dana's Post</div>
+      <div data-ad-preview="message">Lovely day</div>
+      <div data-video-id="2" id="dialog-video" style="width:320px;height:180px"></div>
+      <div role="article" aria-label="Comment by Ann Example" id="comment">Nice! <div role="button">Like</div><div role="button">Reply</div></div>
+      <div role="article" aria-label="Comment by Ben Example">Agreed <div role="button">Like</div><div role="button">Reply</div></div>
+      <form role="presentation" id="comment-box"><div role="textbox" contenteditable="true" aria-label="Comment as You"></div></form>
+    </div>
+  </div>
+
+  <!-- Facebook keeps the text that labels point at in a pool elsewhere. -->
+  <div style="display:none"><span id="lbl-ago">2 hours ago</span><span id="lbl-ad">Ad</span></div>
+</body>
+</html>

@@ -54,11 +54,26 @@
       </label>
     </div>
     <textarea id="kwTerms" spellcheck="false" placeholder="politics&#10;engagement&#10;/giveaway|sweepstake/i"></textarea>
-    <p class="note">Matched against the whole post, so keep words specific.</p>
+    <p class="note">Matched against the whole post, so keep words specific. <span id="kwCount"></span></p>
+
+    <div class="row rowtop" id="phRow">
+      <div class="row-text">
+        <b>Leave a "show" bar where posts were hidden</b>
+        <em>For word blocks and the feed's text rules (suggested posts, friend activity…), so a wrong hide is one click to undo. Ads stay gone.</em>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="placeholders" />
+        <span class="track"></span>
+      </label>
+    </div>
   </section>
 
   <footer class="foot">
-    <button id="reset" class="link">Reset everything</button>
+    <span>
+      <button id="backup" class="link">Back up / restore</button>
+      <span class="muted">·</span>
+      <button id="reset" class="link danger">Reset everything</button>
+    </span>
     <span id="hidden" class="muted"></span>
   </footer>
 
