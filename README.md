@@ -17,7 +17,7 @@ Nothing leaves your browser: no network requests, no analytics, no accounts.
 | LinkedIn | done — checked against the live site, October 2026 |
 | Instagram | done — checked against the live site, October 2026 |
 | Twitch | done — checked against the live site, October 2026 |
-| TikTok | not yet: needs a signed-in session to map |
+| TikTok | partly: mapped signed out — no ad switch until the signed-in feed is checked |
 
 Each site has its own switches and picked rules, and can be switched off on
 its own from the popup. The pause switch, the word list and the "show" bars
@@ -74,6 +74,12 @@ Bits offers, recommended channels in the side nav, and the notification
 badge. Word blocks work on stream titles, games and tags in the directory,
 on the front page and in the side nav.
 
+On TikTok, 7 switches, mapped signed out: TikTok's own promotions (the coins
+offer and CapCut tags, on by default), counts, sound links, LIVE and Short
+dramas in the menu, **Stop videos playing by themselves** (For You then
+waits for a click), and the two effects. There is no ad switch yet; word
+blocks and the picker already work on videos.
+
 With a supported site's tab open, each active rule shows how much it matched on that
 page: **3 here**, or **none here** when nothing matched. Only things you would
 have seen count — not the empty slots a site keeps on every post for content
@@ -126,7 +132,7 @@ LinkedIn it means **posts from that person or page**, keyed on the author's
 picture in the header, never on whoever reacted. On Instagram it means
 **posts from that account** — posts that merely mention it stay. On Twitch,
 picking a stream card or a side nav entry means **that channel**, wherever
-it is listed.
+it is listed. On TikTok it means **videos from that account**.
 
 `Alt+Shift+B` pauses and resumes every rule at once; the toolbar icon shows
 **off** while paused.
@@ -295,6 +301,9 @@ misfire on what someone wrote. Corrections go in `src/sites/facebook.js`.
   The display ad beside the player during an ad break and the front page's
   ad are hidden. Hype trains, predictions and pinned chat highlights did not
   come up during testing and have no switches yet.
+- **TikTok has no ad switch yet.** The test window wasn't signed in to TikTok,
+  and signed out a login prompt stops the feed after a few videos, so no ads
+  came up to measure. Hide one with the picker for now.
 - **Firefox** would need the background section changed from `service_worker`
   to `scripts`; everything else is compatible.
 
@@ -309,6 +318,7 @@ src/sites/x.js              X's
 src/sites/linkedin.js       LinkedIn's
 src/sites/instagram.js      Instagram's
 src/sites/twitch.js         Twitch's
+src/sites/tiktok.js         TikTok's (signed-out parts so far)
 src/common/storage.js       one key in chrome.storage.local, shared everywhere
 src/content/engine.js       stylesheet builder + observer, driven by the site's pack
 src/content/picker.js       overlay, and the selector generator
@@ -330,7 +340,7 @@ the elements they were generated from.
 `npm run test:browser` loads the unpacked extension into Chrome for Testing
 and serves fixture pages at `https://www.facebook.com/`,
 `https://www.reddit.com/`, `https://x.com/`, `https://www.linkedin.com/`,
-`https://www.instagram.com/` and `https://www.twitch.tv/`, so the content scripts
+`https://www.instagram.com/`, `https://www.twitch.tv/` and `https://www.tiktok.com/`, so the content scripts
 run exactly as they do on the real site. It checks what jsdom cannot: that
 Chrome accepts every selector (jsdom is more lenient about `:has()`), the real
 CSS cascade, settings reaching open tabs, reel redirects, the popup, and
