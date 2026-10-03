@@ -1,7 +1,7 @@
 /* Styles for the picker overlay only. Nothing here touches the page unless
  * the picker is running, so the stylesheet is harmless when idle. */
 
-.bfx-picking, .bfx-picking * { cursor: crosshair !important; }
+[data-bfx-picking], [data-bfx-picking] * { cursor: crosshair !important; }
 
 .bfx-picker-root {
   position: fixed;
@@ -63,6 +63,7 @@
   color: #f7c948;
 }
 .bfx-warn[data-level="bad"] { color: #ff8080; }
+.bfx-warn[data-level="info"] { color: #9aa0a6; }
 
 .bfx-toast {
   position: fixed;

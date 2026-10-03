@@ -17,16 +17,38 @@ Nothing leaves your browser: no network requests, no analytics, no accounts.
 
 ## Using it
 
-**Blocks tab** — 31 ready-made switches grouped by where they live (Ads, Feed,
+**Blocks tab** — 34 ready-made switches grouped by where they live (Ads, Feed,
 Inside posts, Sidebars, Top bar, Chat, Effects). Seven are on by default: the
 three ad rules, suggested posts, "people you may know", Reels, and the red
 unread badges. Changes apply instantly in every open Facebook tab, no reload.
 
+With a Facebook tab open, each active rule shows how much it matched on that
+page: **3 here**, or **none here** when nothing matched. "None here" is often
+just a page without that thing on it — but if you can still see it, Facebook
+has changed and the rule needs repairing with the picker. A selector Chrome
+rejects outright is marked **broken**.
+
+The Reels rule also blocks reel pages: opening a reel from a link, a
+notification or the address bar lands you back on the feed. **All video
+posts** goes further and hides every post with a video in it — the whole
+post, shared videos and reels included — rather than just the player.
+
+**Black & white** greys the whole page and keeps it grey; it combines with
+**Blur posts until hovered**, where hovering lifts only the blur.
+
 **Picked tab** — whatever you hid with the picker. Each rule can be switched
-off, scoped to a single page, or deleted.
+off, scoped to a single page, or deleted, and shows the same match count.
 
 **Words tab** — hide any post containing a word. Plain words match anywhere in
-the post; wrap in slashes for a regex: `/giveaway|sweepstake/i`.
+the text you can see in the post — not the text Facebook hides in every post
+for screen readers and anti-blocking, so "public" or "Facebook" only catch
+posts that actually say it. Wrap in slashes for a regex:
+`/giveaway|sweepstake/i`. Turn on
+*Leave a "show" bar* to see where posts were hidden — by your words or by the
+feed's text rules — and click one to bring that post back. Ads never leave one.
+
+**Back up / restore** (popup footer) — downloads every setting to a file, or
+restores one. Restoring checks the file first and skips anything malformed.
 
 **The picker** — click *Hide something by clicking it*, or press
 `Alt+Shift+H` on a Facebook tab:
@@ -39,6 +61,11 @@ the post; wrap in slashes for a regex: `/giveaway|sweepstake/i`.
 | click or `Enter` | hide it, and remember the rule |
 | `esc` | cancel |
 
+Pick a whole post (press `↑` until the box covers it) and the rule becomes
+**posts from that page, person or group**, keyed on the author link in the
+post's title. A post itself can't be picked any other way: Facebook rebuilds
+and renumbers the feed as you scroll.
+
 `Alt+Shift+B` pauses and resumes every rule at once; the toolbar icon shows
 **off** while paused.
 
@@ -47,7 +74,15 @@ the post; wrap in slashes for a regex: `/giveaway|sweepstake/i`.
 Facebook's class names are generated per build (`x1n2onr6`, `xdt5ytf`), so any
 rule written against them dies within days. Every rule here keys off attributes
 Facebook can't churn without breaking its own tooling and screen-reader
-support: `data-pagelet`, `data-visualcompletion`, `role`, `aria-label`.
+support. As checked against the live site in October 2026, that means:
+
+- each feed post is a `div[aria-posinset]` — there is no `role="feed"`, no
+  `data-pagelet` anywhere, and `role="article"` now marks comments
+- parts of every post carry `data-ad-rendering-role` (`like_button`,
+  `comment_button`, `image`…) — on ordinary posts too, so it is structure,
+  never an ad signal
+- `aria-label`s on the top bar and buttons, `data-focus-target`,
+  `data-video-id`, `data-imgperflogname`
 
 Two mechanisms do the work:
 
@@ -56,8 +91,15 @@ Two mechanisms do the work:
   nothing per frame. Each selector gets its own rule, so when Facebook breaks
   one, only that one stops working.
 - **A debounced `MutationObserver`** for what CSS can't see: is this post an ad,
-  does it contain a banned word, is that a badge. Each post is judged once and
-  marked, and the observer only runs when a rule actually needs it.
+  is it from a page you don't follow, does it contain a banned word. Facebook
+  renders posts in pieces and empties the ones that scroll away, so a post is
+  judged once it has content and judged again whenever that content changes.
+
+Everything hidden is marked with an attribute (`data-bfx-hidden-by`), never a
+class: Facebook's React rewrites class names whenever it re-renders something,
+which used to let hidden ads quietly reappear. Anything that loses its marker
+anyway is re-hidden on the next pass, and the stylesheet is put back if the
+page ever drops it.
 
 ## Ads
 
@@ -66,38 +108,84 @@ signal can vanish in a Facebook deploy.
 
 | rule | how it finds the ad |
 | --- | --- |
-| Sponsored posts in the feed | ad-only markup (`data-ad-preview`, `data-ad-rendering-role`), the "Why am I seeing this ad?" link, then the label itself |
+| Sponsored posts in the feed | the header link of an ad starts with an invisible word joiner; its label, once attached, reads "Ad"; issue ads still say "Sponsored" |
 | Sidebar ads | the Sponsored heading in the right column |
-| Ads everywhere else | sweeps Stories, Reels, Marketplace, search, Watch and groups for a Sponsored label and hides that one card |
+| Ads everywhere else | sweeps Marketplace, Stories, search and groups for an "Ad" or "Sponsored" label and hides that one card |
 | Paid partnership posts | branded content from pages you follow (off by default) |
 
-The first two signals are markup, so they fire in CSS before the page paints
-and work in any language. The label is only the fallback, because Facebook
-deliberately mangles it: the word is split across shuffled spans padded with
-decoy letters that CSS hides, so the raw text reads like `SpqqOnsored`. A loose
-fuzzy match finds candidates, then a visible-text reader — which skips anything
+Facebook no longer writes "Sponsored" into feed ads. Where an ordinary post's
+header links to "2 hours ago", an ad's header link holds an empty span whose
+`aria-labelledby` points at a detached element reading **Ad** — and that
+reference is only attached once the ad scrolls into view. Before then, the
+same link already gives the ad away: its text starts with a word joiner
+(U+2060). On the live feed that character was on every ad and on nothing else,
+so ads are hidden before they are drawn, with the label as a second check.
+
+What it deliberately does not use is `data-ad-preview` or
+`data-ad-rendering-role`: the names suggest ads, but Facebook renders ordinary
+posts through the same template, so keying off them hides the whole feed.
+
+Where the label is real text, Facebook mangles it: the word is split across
+shuffled spans padded with decoy letters that CSS hides. A loose fuzzy match
+finds candidates, then a visible-text reader — which skips anything
 `display:none`, zero-sized or parked off-screen — decides.
 
 The sweep's hard part is hiding *the ad card* rather than the Stories tray or
 the whole Marketplace grid. It climbs from the label to the first ancestor that
 is card-sized and sits among siblings, and bails out on anything that looks
-like a whole surface (`role="feed"`, `role="main"`, taller than 85% of the
-viewport, or containing more than one post).
+like a whole surface (`role="main"`, taller than 85% of the viewport, or
+containing more than one post).
 
 Two things this cannot do: **in-stream video ads** can be hidden but not
 skipped — the player still has to run them — and **network-level blocking is
 useless here**, because Facebook serves ads from the same first-party domains
 and CDNs as everything else. Blocking those breaks the site.
 
+## Suggestions
+
+Facebook dropped the "Suggested for you" line too. A post from a page, person
+or group you don't follow now has a **Follow** (or **Join**) button inside its
+title; the suggested-posts rule keys on that button, so it needs no language.
+"People you may know", group suggestions and similar boxes are carousels, not
+posts: no author title, and the same button ("Add friend", "Join group") on
+every card. The people-you-may-know rule counts that repetition, also without
+reading the language.
+
+## Languages
+
+Phrases are only a fallback now (paid partnerships and friend activity rely
+on them). English comes from Facebook itself; Vietnamese, Spanish, Portuguese,
+French, German, Italian and Indonesian are best-effort translations, all tried
+at once and only against a post's header — never its body — so a phrase cannot
+misfire on what someone wrote. Corrections go in `src/common/presets.js`.
+
 ## Known limits
 
 - **Facebook changes.** When a rule stops working, the picker is the repair
   tool: hide the thing again and the new selector is saved.
-- **Picked rules inside the feed are fragile** by nature, since Facebook
+- **Picked rules for parts of a post are fragile** by nature, since Facebook
   rebuilds the feed constantly. The picker warns you when you're about to make
-  one and suggests a word block instead.
+  one; picking the whole post (posts from that author) or a word block lasts.
 - **Tab-title counts** (`(3) Facebook`) are stripped live; turning the badges
   rule back off restores them on the next navigation, not instantly.
+- **Some switches outside the feed key off English `aria-label`s**
+  (Marketplace, Notifications, Messenger, the chat heads). On Facebook in
+  another language, use the picker for those.
+- **Story ads** are untested: the story viewer could not be stepped through
+  automatically. Feed, Video, Marketplace, search and sidebar ads were checked
+  live, including that they stay hidden while you scroll and hover.
+- **Centre the feed** currently has nothing to do: Facebook already centres the
+  feed once both sidebars are hidden.
+- **Not yet seen on the live site**, so unverified: open chat windows (the
+  chat heads are covered), "X commented on this" and paid-partnership posts
+  (none turned up in 150 posts; "X was tagged" is covered), and ads inside
+  Stories.
+- **Stop videos playing by themselves** pauses any feed video that starts
+  without a click or Enter/Space just before. Checked by starting a real feed
+  video from script; on the account it was tested with, Facebook's own
+  autoplay was already off.
+- **Reels opened inside Facebook** (not by loading a URL) are redirected within
+  a second, so the first moment may play.
 - **Firefox** would need the background section changed from `service_worker`
   to `scripts`; everything else is compatible.
 
@@ -112,10 +200,27 @@ src/content/picker.js       overlay, and the selector generator
 src/content/main.js         bootstrap, SPA route changes, messaging
 src/background/            keyboard shortcuts and the toolbar badge
 src/popup/                 the UI
+src/options/               backup and restore
 test/smoke.js              runs the real content scripts against a mock DOM
+test/browser.js            loads the extension into real Chrome
+test/fixtures/             pages for the browser test, and your own snapshots
 ```
 
 `npm test` builds a fake Facebook page in jsdom, applies the engine to it, and
 checks that ads/suggestions/keyword posts are hidden, ordinary posts are not,
 switching a rule off brings things back, and the picker's selectors resolve to
 the elements they were generated from.
+
+`npm run test:browser` loads the unpacked extension into Chrome for Testing
+and serves fixture pages at `https://www.facebook.com/`, so the content scripts
+run exactly as they do on the real site. It checks what jsdom cannot: that
+Chrome accepts every selector (jsdom is more lenient about `:has()`), the real
+CSS cascade, settings reaching open tabs, reel redirects, the popup, and
+backup/restore. It needs Chrome for Testing or Chromium — branded Chrome
+ignores unpacked extensions from the command line — found via `CHROME_PATH`
+or the Playwright/Puppeteer cache (`npx @puppeteer/browsers install
+chrome@stable` gets one).
+
+Save real Facebook pages into `test/fixtures/snapshots/` (instructions in the
+README there) and the browser test also checks that the ad rules never hide
+most of a real feed.

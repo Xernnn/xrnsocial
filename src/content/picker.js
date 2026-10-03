@@ -20,7 +20,9 @@
 
   /* ------------------------------------------------- selector building -- */
 
-  var GENERATED_CLASS = /^(x[a-z0-9]{4,}|_[a-z0-9]{3,}|css-[a-z0-9]+)$/i;
+  /* Generated per build (x1n2onr6), or put on nearly every element of its
+   * kind (html-div, html-h3): neither identifies anything. */
+  var GENERATED_CLASS = /^(x[a-z0-9]{4,}|_[a-z0-9]{3,}|css-[a-z0-9]+|html-[a-z0-9]+)$/i;
   var GENERATED_ID = /[:\d]|^r[0-9a-f]{4,}$/;
 
   /* CSS.escape is everywhere Chrome is, but guard it so the module also runs
@@ -33,9 +35,11 @@
     return '"' + String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
   }
 
+  /* Neither Facebook's generated classes nor our own markers: a rule keyed on
+   * bfx-hidden would match everything already hidden, not the thing picked. */
   function stableClasses(el) {
     return Array.prototype.filter.call(el.classList, function (c) {
-      return !GENERATED_CLASS.test(c);
+      return !GENERATED_CLASS.test(c) && c.indexOf('bfx-') !== 0;
     });
   }
 
@@ -45,11 +49,11 @@
     var out = [];
     var attr = function (name) { return el.getAttribute(name); };
 
+    /* Not data-visualcompletion: its values (ignore, ignore-dynamic,
+     * css-img ...) are shared by hundreds of unrelated elements. */
+    if (attr('data-focus-target')) out.push('[data-focus-target=' + cssString(attr('data-focus-target')) + ']');
     if (attr('data-pagelet')) out.push('[data-pagelet=' + cssString(attr('data-pagelet')) + ']');
     if (attr('data-testid')) out.push('[data-testid=' + cssString(attr('data-testid')) + ']');
-    if (attr('data-visualcompletion')) {
-      out.push(tag + '[data-visualcompletion=' + cssString(attr('data-visualcompletion')) + ']');
-    }
     if (attr('aria-label')) {
       var label = '[aria-label=' + cssString(attr('aria-label')) + ']';
       if (attr('role')) out.push(tag + '[role=' + cssString(attr('role')) + ']' + label);
@@ -104,25 +108,65 @@
       for (var j = 0; j < anchors.length; j++) {
         var sel = anchors[j] + ' > ' + tail.join(' > ');
         var found = matches(sel);
-        if (found.length && Array.prototype.indexOf.call(found, el) !== -1) return sel;
+        if (found.length && found.length <= MAX_BROAD_MATCHES &&
+            Array.prototype.indexOf.call(found, el) !== -1) return sel;
       }
     }
     return null;
   }
 
-  /* Last resort: a structural path from <body>. Precise, and fragile by
-   * nature — fine for chrome, useless for anything Facebook re-renders. */
+  /* Last resort: a structural path, from the nearest ancestor that a stable
+   * hook pins down to exactly one element, or else from <body>. Precise, and
+   * fragile by nature — fine for chrome, useless for anything Facebook
+   * re-renders. */
   function exactSelector(el) {
     var parts = [];
     var node = el;
-    while (node && node !== document.body && parts.length < 12) {
+    while (node && node !== document.body && parts.length < 40) {
       parts.unshift(nthChild(node));
       node = node.parentElement;
+      if (!node || node === document.body) break;
+      var anchors = candidates(node);
+      for (var j = 0; j < anchors.length; j++) {
+        if (matches(anchors[j]).length === 1) return anchors[j] + ' > ' + parts.join(' > ');
+      }
     }
     return 'body > ' + parts.join(' > ');
   }
 
+  /* A feed post is rebuilt and renumbered as you scroll, so no selector for
+   * it survives. Picking one means "posts from this author": the first link
+   * in its title (a page, a person or a group), matched up to its query
+   * string, which carries per-view tracking. */
+  function authorOf(post) {
+    var link = post.querySelector('h4 a[href]');
+    if (!link) return null;
+    var href = link.getAttribute('href');
+    var m = /^([^?#]*)(\?id=\d+)?/.exec(href);
+    var base = m[1] + (m[2] || '');
+    if (!base || base === '/' || /facebook\.com\/?$/.test(base)) return null;
+    var next = base.indexOf('?') === -1 ? '?' : '&';
+    var selector = ['=', '^='].map(function (op) {
+      return 'div[aria-posinset]:has(h4 a[href' + op + cssString(op === '=' ? base : base + next) + '])';
+    }).join(', ');
+    return { selector: selector, name: link.textContent.trim() };
+  }
+
   function buildSelector(el) {
+    if (el.matches('[aria-posinset]')) {
+      var author = authorOf(el);
+      if (author) {
+        var posts = matches(author.selector);
+        return {
+          selector: author.selector,
+          broad: author.selector,
+          exact: author.selector,
+          author: author.name,
+          count: posts.length,
+          valid: Array.prototype.indexOf.call(posts, el) !== -1
+        };
+      }
+    }
     var broad = broadSelector(el);
     var exact = exactSelector(el);
     var chosen = useBroad && broad ? broad : (broad || exact);
@@ -138,6 +182,10 @@
   }
 
   function describe(el) {
+    if (el.matches('[aria-posinset]')) {
+      var author = authorOf(el);
+      if (author) return 'Posts from ' + (author.name.length > 32 ? author.name.slice(0, 31) + '…' : author.name);
+    }
     var label = el.getAttribute('aria-label') || el.getAttribute('data-pagelet') || '';
     if (!label) label = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40);
     if (!label) label = el.tagName.toLowerCase();
@@ -174,6 +222,17 @@
     };
   }
 
+  /* Building a selector runs document-wide queries, and paint() runs on every
+   * mouse move and scroll; only rebuild when the target or the mode changes. */
+  var cache = { target: null, broad: null, built: null };
+
+  function builtFor(el) {
+    if (cache.target !== el || cache.broad !== useBroad) {
+      cache = { target: el, broad: useBroad, built: buildSelector(el) };
+    }
+    return cache.built;
+  }
+
   function paint() {
     if (!target || !ui) return;
     var rect = target.getBoundingClientRect();
@@ -183,17 +242,20 @@
     box.width = rect.width + 'px';
     box.height = rect.height + 'px';
 
-    var built = buildSelector(target);
+    var built = builtFor(target);
     ui.name.textContent = describe(target);
     ui.sel.textContent = built.selector || '(no stable selector)';
-    ui.mode.textContent = useBroad
-      ? 'all ' + built.count + ' like it'
-      : 'only this one';
+    ui.mode.textContent = built.author
+      ? 'every post from ' + built.author
+      : useBroad ? 'all ' + built.count + ' like it' : 'only this one';
 
-    var inFeed = !!target.closest('div[role="feed"], div[data-pagelet^="FeedUnit"]');
+    var inFeed = !!target.closest('[aria-posinset], div[role="feed"], div[data-pagelet^="FeedUnit"]');
     if (!built.valid) {
       ui.warn.textContent = 'No selector matches this element — try ↑ for its parent.';
       ui.warn.dataset.level = 'bad';
+    } else if (built.author) {
+      ui.warn.textContent = 'Hides every post from ' + built.author + ', wherever it shows up.';
+      ui.warn.dataset.level = 'info';
     } else if (inFeed && !built.broad) {
       ui.warn.textContent = 'This lives inside the feed, which Facebook rebuilds constantly. ' +
         'A keyword block will outlast this rule.';
@@ -287,7 +349,7 @@
     onDone = cb || null;
     climb = 0;
     ui = buildUi();
-    document.documentElement.classList.add('bfx-picking');
+    document.documentElement.setAttribute('data-bfx-picking', '');
     document.addEventListener('mousemove', onMove, true);
     document.addEventListener('keydown', onKey, true);
     LISTEN.forEach(function (type) { document.addEventListener(type, swallow, true); });
@@ -297,7 +359,7 @@
   function stop() {
     if (!active) return;
     active = false;
-    document.documentElement.classList.remove('bfx-picking');
+    document.documentElement.removeAttribute('data-bfx-picking');
     document.removeEventListener('mousemove', onMove, true);
     document.removeEventListener('keydown', onKey, true);
     LISTEN.forEach(function (type) { document.removeEventListener(type, swallow, true); });
@@ -305,6 +367,7 @@
     if (ui) ui.host.remove();
     ui = null;
     target = hovered = null;
+    cache = { target: null, broad: null, built: null };
   }
 
   root.BFX_PICKER = {

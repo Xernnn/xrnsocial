@@ -1,0 +1,69 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f0f2f5;
+  --panel: #ffffff;
+  --line: #e4e6eb;
+  --text: #1c1e21;
+  --dim: #65676b;
+  --accent: #2d88ff;
+  --danger: #e04b4b;
+  --ok: #2e7d32;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #18191a;
+    --panel: #242526;
+    --line: #3a3b3c;
+    --text: #e4e6eb;
+    --dim: #b0b3b8;
+    --ok: #6fcf73;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 560px; margin: 0 auto; padding: 32px 16px; }
+
+.head { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.logo {
+  width: 36px; height: 36px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 800;
+}
+h1 { margin: 0; font-size: 20px; }
+h2 { margin: 0 0 4px; font-size: 15px; }
+.dim { margin: 0 0 12px; color: var(--dim); }
+
+.card {
+  margin-bottom: 14px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+input[type="file"] { display: block; margin-bottom: 10px; max-width: 100%; color: var(--dim); font: inherit; }
+#preview:empty, .message:empty { display: none; }
+
+.primary {
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font: 600 13.5px/1.2 inherit;
+  cursor: pointer;
+}
+.primary:disabled { opacity: .45; cursor: default; }
+
+.message { margin: 12px 0 0; font-weight: 500; }
+.message[data-level="ok"] { color: var(--ok); }
+.message[data-level="bad"] { color: var(--danger); }

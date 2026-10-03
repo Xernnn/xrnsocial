@@ -44,8 +44,34 @@ const PAGE = `<!doctype html><html><head><title>(3) Facebook</title></head><body
       <div data-pagelet="FeedUnit_2" role="article" id="u-ok">A friend posted a photo of a cat</div>
       <div data-pagelet="FeedUnit_3" role="article" id="u-kw">Buy CRYPTO now, huge giveaway</div>
       <div data-pagelet="FeedUnit_4" role="article" id="u-pymk">People you may know</div>
-      <div data-pagelet="FeedUnit_5" role="article" id="u-ad2" data-h="300">
-        <div data-ad-preview="message">Buy our thing</div>
+      <div data-pagelet="FeedUnit_5" role="article" id="u-organic" data-h="300">
+        <div data-ad-rendering-role="profile_name"><span dir="auto">Dana</span></div>
+        <div data-ad-preview="message" data-ad-comet-preview="message" data-ad-rendering-role="story_message">Lovely day at the lake</div>
+        <div data-ad-rendering-role="like_button" aria-label="Like" role="button"></div>
+      </div>
+      <div data-pagelet="FeedUnit_7" role="article" id="u-ad3" data-h="300">
+        <span dir="auto">Sp<span style="display:none">qq</span>onso<span style="display:none">x</span>red</span>
+        <div>Buy our thing</div>
+      </div>
+      <div data-pagelet="FeedUnit_8" role="article" id="u-act">
+        <h4>Bob commented on this.</h4>
+        <div data-ad-preview="message">Original post from a page</div>
+      </div>
+      <div data-pagelet="FeedUnit_9" role="article" id="u-body">
+        <h4>Carl</h4>
+        <div data-ad-preview="message">My aunt commented on this, People you may know where she lives</div>
+        <div id="bar"><div><div aria-label="Like" role="button"></div></div><div><div aria-label="Comment" role="button"></div></div></div>
+        <div id="comments">
+          <div role="article" id="u-comment" aria-label="Comment by Fay">Fay replied to a comment above
+            <div id="comment-actions"><span aria-label="Like" role="button"></span><span>Reply</span></div>
+          </div>
+        </div>
+      </div>
+      <div data-pagelet="FeedUnit_10" role="article" id="u-vi">
+        <span dir="auto">Gợi ý cho bạn</span> · Trang ABC đã đăng
+      </div>
+      <div data-pagelet="FeedUnit_11" role="article" id="u-reel-link">
+        <h4>Gina</h4><a id="reel-link" href="/reel/123456/">watch my reel</a>
       </div>
       <div data-pagelet="FeedUnit_6" role="article" id="u-pp" data-h="300">
         Paid partnership with Brand · a creator posted
@@ -74,42 +100,48 @@ const PAGE = `<!doctype html><html><head><title>(3) Facebook</title></head><body
   </div>
 </body></html>`;
 
-const dom = new JSDOM(PAGE, {
-  url: 'https://www.facebook.com/',
-  pretendToBeVisual: true,
-  runScripts: 'outside-only'
-});
-const { window } = dom;
+/* A window running the real content scripts (except main.js) over `html`. */
+function boot(html) {
+  const { window } = new JSDOM(html, {
+    url: 'https://www.facebook.com/',
+    pretendToBeVisual: true,
+    runScripts: 'outside-only'
+  });
 
-/* jsdom has no layout: give everything a plausible box so visibility checks
- * behave like a real browser. */
-window.Element.prototype.getBoundingClientRect = function () {
-  const width = Math.max(8, Math.min(600, (this.textContent || '').trim().length * 8));
-  const height = Number(this.getAttribute('data-h')) || 24;
-  return { top: 10, left: 10, width, height, right: 10 + width, bottom: 10 + height, x: 10, y: 10 };
-};
+  /* jsdom has no layout: give everything a plausible box so visibility checks
+   * behave like a real browser. */
+  window.Element.prototype.getBoundingClientRect = function () {
+    const width = Math.max(8, Math.min(600, (this.textContent || '').trim().length * 8));
+    const height = Number(this.getAttribute('data-h')) || 24;
+    return { top: 10, left: 10, width, height, right: 10 + width, bottom: 10 + height, x: 10, y: 10 };
+  };
 
-const storage = {};
-window.chrome = {
-  storage: {
-    local: {
-      get: (key, cb) => cb({ [key]: storage[key] }),
-      set: (obj, cb) => { Object.assign(storage, obj); (cb || (() => {}))(); }
+  const storage = {};
+  window.chrome = {
+    storage: {
+      local: {
+        get: (key, cb) => cb({ [key]: storage[key] }),
+        set: (obj, cb) => { Object.assign(storage, obj); (cb || (() => {}))(); }
+      },
+      onChanged: { addListener: () => {} }
     },
-    onChanged: { addListener: () => {} }
-  },
-  runtime: { onMessage: { addListener: () => {} }, lastError: null }
-};
+    runtime: { onMessage: { addListener: () => {} }, lastError: null }
+  };
 
-for (const file of [
-  'src/common/presets.js',
-  'src/common/storage.js',
-  'src/content/engine.js',
-  'src/content/picker.js'
-]) {
-  window.eval(fs.readFileSync(path.join(root, file), 'utf8'));
+  for (const file of [
+    'src/common/presets.js',
+    'src/common/storage.js',
+    'src/content/engine.js',
+    'src/content/picker.js'
+  ]) {
+    window.eval(fs.readFileSync(path.join(root, file), 'utf8'));
+  }
+  return window;
 }
 
+/* The older markup (role="feed", data-pagelet), which Facebook no longer
+ * ships but the rules still accept. Today's markup is tested further down. */
+const window = boot(PAGE);
 const { BFX_PRESETS, BFX_STORE, BFX_ENGINE, BFX_PICKER } = window;
 
 /* --------------------------------------------------------- selectors -- */
@@ -143,9 +175,11 @@ const everything = BFX_STORE.merge({
 });
 BFX_ENGINE.apply(everything);
 const css = window.document.getElementById('bfx-style').textContent;
-ok('hidden class is defined', css.includes('.bfx-hidden{display:none !important}'));
+ok('the hidden marker rule is defined', css.includes('[data-bfx-hidden-by]{display:none !important}'));
 ok('preset selectors are emitted', css.includes('div[data-pagelet="Stories"]{display:none !important}'));
 ok('effect rules keep their own CSS', css.includes('filter: blur(5px)'));
+ok('black & white greys the whole page, with no hover exception',
+  css.includes('html { filter: grayscale(1) !important; }') && !/:hover[^{]*\{[^}]*grayscale/.test(css));
 ok('path-scoped rule stays out on other pages', css.includes('#nope') === false, 'path-scoped rule leaked');
 ok('each selector is its own rule', css.split('\n').length > BFX_PRESETS.length);
 
@@ -163,24 +197,28 @@ ok('ad post is hidden', hiddenBy('u-ad') === 'sponsored', 'got ' + hiddenBy('u-a
 ok('suggested post is hidden', hiddenBy('u-sug') === 'suggested', 'got ' + hiddenBy('u-sug'));
 ok('"people you may know" is hidden', hiddenBy('u-pymk') === 'pymk', 'got ' + hiddenBy('u-pymk'));
 ok('keyword post is hidden', hiddenBy('u-kw') === 'keyword', 'got ' + hiddenBy('u-kw'));
-ok('an ordinary post survives', !$('u-ok').classList.contains('bfx-hidden'));
-ok('unread badge is hidden', $('u-ad') && window.document.querySelector('[aria-label="Notifications"] span').classList.contains('bfx-hidden'));
+ok('an ordinary post survives', !$('u-ok').hasAttribute('data-bfx-hidden-by'));
+ok('unread badge is hidden', $('u-ad') && window.document.querySelector('[aria-label="Notifications"] span').hasAttribute('data-bfx-hidden-by'));
 ok('tab title count is stripped', window.document.title === 'Facebook', window.document.title);
-ok('sidebar ad block is hidden', $('side-ad').closest('.bfx-hidden') !== null);
+ok('sidebar ad block is hidden', $('side-ad').closest('[data-bfx-hidden-by]') !== null);
 
 /* ---------------------------------------------------------------- ads -- */
 console.log('\nads');
-ok('ad markup is hidden by CSS alone, before any script runs',
-  Array.from(window.document.querySelectorAll('div[data-pagelet^="FeedUnit"]:has([data-ad-preview])'))
-    .some(el => el.id === 'u-ad2'));
-ok('ad with no Sponsored text at all is caught', hiddenBy('u-ad2') === 'sponsored', 'got ' + hiddenBy('u-ad2'));
+ok('ad with an explainer link is hidden by CSS alone, before any script runs',
+  Array.from(window.document.querySelectorAll('div[data-pagelet^="FeedUnit"]:has(a[href*="/ads/about"])'))
+    .some(el => el.id === 'u-ad'));
+ok('ad with only a decoy-padded label is caught', hiddenBy('u-ad3') === 'sponsored', 'got ' + hiddenBy('u-ad3'));
+ok('ordinary post with data-ad-* markup survives (Facebook renders it on every post)',
+  !$('u-organic').hasAttribute('data-bfx-hidden-by'), 'hidden by ' + hiddenBy('u-organic'));
+ok('the ad rule never keys on data-ad-* markup (it is on every post)',
+  BFX_PRESETS.find(r => r.id === 'sponsored').css.every(sel => !/data-ad-/.test(sel)));
 ok('paid partnership post is caught', hiddenBy('u-pp') === 'paidPartnership', 'got ' + hiddenBy('u-pp'));
 ok('sponsored story is hidden', hiddenBy('story-2') === 'adSweep', 'got ' + hiddenBy('story-2'));
 ok('the rest of the story tray survives',
-  !$('story-1').classList.contains('bfx-hidden') && !$('tray').classList.contains('bfx-hidden'));
+  !$('story-1').hasAttribute('data-bfx-hidden-by') && !$('tray').hasAttribute('data-bfx-hidden-by'));
 ok('sponsored marketplace tile is hidden', hiddenBy('mp-1') === 'adSweep', 'got ' + hiddenBy('mp-1'));
 ok('the marketplace grid itself survives',
-  !$('mp-grid').classList.contains('bfx-hidden') && !$('mp-2').classList.contains('bfx-hidden'));
+  !$('mp-grid').hasAttribute('data-bfx-hidden-by') && !$('mp-2').hasAttribute('data-bfx-hidden-by'));
 
 /* With the feed rule off, the sweep is allowed into the feed instead. */
 const sweepOnly = BFX_STORE.merge({
@@ -191,7 +229,7 @@ const sweepOnly = BFX_STORE.merge({
 BFX_ENGINE.apply(sweepOnly);
 await frame();
 ok('sweep covers feed ads when the feed rule is off', hiddenBy('u-ad') === 'adSweep', 'got ' + hiddenBy('u-ad'));
-ok('sweep leaves ordinary posts alone', !$('u-ok').classList.contains('bfx-hidden'));
+ok('sweep leaves ordinary posts alone', !$('u-ok').hasAttribute('data-bfx-hidden-by'));
 
 /* ----------------------------------------------------------- toggles -- */
 console.log('\nturning rules off');
@@ -204,7 +242,7 @@ const off = BFX_STORE.merge({
 });
 BFX_ENGINE.apply(off);
 await frame();
-const stuck = Array.from(window.document.querySelectorAll('.bfx-hidden'))
+const stuck = Array.from(window.document.querySelectorAll('[data-bfx-hidden-by]'))
   .map(e => (e.id || e.tagName) + ':' + e.getAttribute('data-bfx-hidden-by'));
 ok('previously hidden posts come back', stuck.length === 0, 'still hidden: ' + stuck.join(', '));
 ok('stylesheet drops the rules', !window.document.getElementById('bfx-style').textContent.includes('Stories'));
@@ -221,11 +259,127 @@ await frame();
 window.document.querySelector('[aria-label="Notifications"] span').textContent = '9';
 await frame();
 ok('badges alone still get stripped',
-  window.document.querySelector('[aria-label="Notifications"] span').classList.contains('bfx-hidden'));
+  window.document.querySelector('[aria-label="Notifications"] span').hasAttribute('data-bfx-hidden-by'));
 
 BFX_ENGINE.apply(BFX_STORE.merge({ enabled: false, presets: { stories: true } }));
 ok('master switch empties the sheet',
   !window.document.getElementById('bfx-style').textContent.includes('Stories'));
+
+/* ----------------------------------------------------- feed phrases -- */
+console.log('\nfeed phrases');
+BFX_ENGINE.apply(everything);
+await frame();
+ok('friend activity in the post header is hidden', hiddenBy('u-act') === 'reactionsOnPosts', 'got ' + hiddenBy('u-act'));
+ok('the same phrase inside the post body is not', !$('u-body').hasAttribute('data-bfx-hidden-by'), 'hidden by ' + hiddenBy('u-body'));
+ok('comments are not judged as posts of their own', !$('u-comment').hasAttribute('data-bfx-hidden-by'), 'hidden by ' + hiddenBy('u-comment'));
+ok('Vietnamese "suggested for you" is hidden', hiddenBy('u-vi') === 'suggested', 'got ' + hiddenBy('u-vi'));
+ok('links to reels are hidden by CSS', $('reel-link').matches('a[href^="/reel/"]') &&
+  window.document.getElementById('bfx-style').textContent.includes('a[href^="/reel/"]{display:none !important}'));
+
+ok('the Like / Comment row is hidden', hiddenBy('bar') === 'postActions', 'got ' + hiddenBy('bar'));
+ok('but not the comments or their own Like buttons',
+  !$('comments').closest('[data-bfx-hidden-by]') && !$('comment-actions').hasAttribute('data-bfx-hidden-by'));
+BFX_ENGINE.apply(BFX_STORE.merge({
+  presets: Object.assign(Object.fromEntries(BFX_PRESETS.map(r => [r.id, false])), { postActions: true })
+}));
+await frame();
+ok('a post whose buttons sit directly in it is not taken for the row',
+  !$('u-ad').hasAttribute('data-bfx-hidden-by') && hiddenBy('bar') === 'postActions', 'u-ad hidden by ' + hiddenBy('u-ad'));
+BFX_ENGINE.apply(everything);
+await frame();
+
+/* -------------------------------------------------------- reel pages -- */
+console.log('\nreel pages');
+const at = (pathname, hostname = 'www.facebook.com') => ({ pathname, hostname });
+const withReels = BFX_STORE.merge(null);
+ok('a reel page redirects home', BFX_ENGINE.redirectFor(withReels, at('/reel/123456/')) === '/');
+ok('the reels tab redirects home', BFX_ENGINE.redirectFor(withReels, at('/reels/')) === '/');
+ok('lookalike paths do not', BFX_ENGINE.redirectFor(withReels, at('/reelsandmore')) === null);
+ok('nothing redirects with the Reels rule off',
+  BFX_ENGINE.redirectFor(BFX_STORE.merge({ presets: { reels: false } }), at('/reel/1')) === null);
+ok('nothing redirects while paused',
+  BFX_ENGINE.redirectFor(BFX_STORE.merge({ enabled: false }), at('/reel/1')) === null);
+ok('messenger.com is left alone', BFX_ENGINE.redirectFor(withReels, at('/reel/1', 'www.messenger.com')) === null);
+
+/* ------------------------------------------------------- rule health -- */
+console.log('\nrule health');
+const stats = BFX_ENGINE.stats();
+ok('CSS rules report what they match', stats.presets.stories && stats.presets.stories.count >= 1,
+  JSON.stringify(stats.presets.stories));
+ok('JS rules report what they hid', stats.presets.sponsored && stats.presets.sponsored.count >= 2,
+  JSON.stringify(stats.presets.sponsored));
+ok('effect-only rules have nothing to count', !('grayscale' in stats.presets));
+ok('a rule scoped to another page says so', stats.custom.c2 && stats.custom.c2.offPage === true);
+ok('word blocks are counted', stats.keyword >= 1, 'got ' + stats.keyword);
+ok('nothing is reported while paused',
+  (BFX_ENGINE.apply(BFX_STORE.merge({ enabled: false })), Object.keys(BFX_ENGINE.stats().presets).length === 0));
+
+/* A stored selector that is not a selector must not reach the sheet, where
+ * it could close its rule and add CSS of its own. */
+BFX_ENGINE.apply(BFX_STORE.merge({
+  presets: {},
+  custom: [{ id: 'evil', selector: 'x{}body{background:url(https://example.invalid/t)} y', enabled: true, scope: 'all' }]
+}));
+ok('an invalid custom selector is kept out of the stylesheet',
+  !window.document.getElementById('bfx-style').textContent.includes('example.invalid'));
+ok('and is reported as broken', BFX_ENGINE.stats().custom.evil.broken.length === 1);
+
+/* ------------------------------------------------------- late labels -- */
+console.log('\nlate labels');
+BFX_ENGINE.apply(BFX_STORE.merge(null));
+await frame();
+const lateSection = window.document.createElement('div');
+lateSection.innerHTML = '<div><h3 id="late-label"></h3></div><div id="late-ad">another advert</div>';
+window.document.querySelector('[role="complementary"]').appendChild(lateSection);
+await frame();
+$('late-label').textContent = 'Sponsored';
+await frame();
+ok('a sidebar label filled in after it appeared is still caught', $('late-ad').closest('[data-bfx-hidden-by]') !== null);
+
+/* ------------------------------------------------------ placeholders -- */
+console.log('\nplaceholders');
+BFX_ENGINE.apply(Object.assign({}, everything, { placeholders: true }));
+await frame();
+const sheet = window.document.getElementById('bfx-style').textContent;
+ok('placeholder styles are emitted', sheet.includes('[data-bfx-hidden-by][data-bfx-note]::before'));
+ok('a word-blocked post leaves a placeholder naming the word',
+  $('u-kw').hasAttribute('data-bfx-note') && /word: crypto/.test($('u-kw').getAttribute('data-bfx-note') || ''),
+  $('u-kw').getAttribute('data-bfx-note'));
+ok('a text-rule post names its rule',
+  /Suggested \/ recommended posts/.test($('u-sug').getAttribute('data-bfx-note') || ''));
+ok('ads leave no placeholder', !$('u-ad').hasAttribute('data-bfx-note'));
+$('u-kw').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+ok('clicking the placeholder shows the post', !$('u-kw').hasAttribute('data-bfx-hidden-by'));
+BFX_ENGINE.apply(Object.assign({}, everything, { placeholders: true }));
+await frame();
+ok('and it stays shown after settings change', !$('u-kw').hasAttribute('data-bfx-hidden-by'));
+BFX_ENGINE.apply(everything);
+await frame();
+ok('with placeholders off, posts are simply gone', !$('u-sug').hasAttribute('data-bfx-note') &&
+  $('u-sug').hasAttribute('data-bfx-hidden-by') && !window.document.getElementById('bfx-style').textContent.includes('[data-bfx-hidden-by][data-bfx-note]'));
+
+/* ------------------------------------------------------------ backup -- */
+console.log('\nbackup');
+const mine = BFX_STORE.merge({
+  presets: { stories: true, sponsored: false },
+  custom: [{ id: 'k1', selector: '[aria-label="Marketplace"]', label: 'Marketplace', scope: 'all',
+    path: '/marketplace/', enabled: true, createdAt: 1700000000000 }],
+  keywords: { enabled: true, terms: ['crypto'] },
+  placeholders: true
+});
+const restored = BFX_STORE.fromBackup(JSON.parse(JSON.stringify(BFX_STORE.toBackup(mine))));
+ok('a backup restores to the same settings', JSON.stringify(restored) === JSON.stringify(mine));
+let threw = null;
+try { BFX_STORE.fromBackup({ hello: 'world' }); } catch (e) { threw = e.message; }
+ok('a file that is not a backup is refused', /does not contain BlockFB settings/.test(threw || ''), threw);
+const cleaned = BFX_STORE.fromBackup({
+  presets: { stories: 'yes', feed: true },
+  custom: [{ selector: 'div}body{color:red' }, { selector: 'a[href^="/x"]', scope: 'weird' }, null],
+  keywords: { enabled: 1, terms: ['ok', 7, ' '] }
+});
+ok('non-boolean switches are ignored', cleaned.presets.stories === undefined && cleaned.presets.feed === true);
+ok('picked rules with invalid selectors are dropped', cleaned.custom.length === 1 && cleaned.custom[0].scope === 'all');
+ok('words are cleaned', JSON.stringify(cleaned.keywords) === JSON.stringify({ enabled: false, terms: ['ok'] }));
 
 /* ------------------------------------------------------------ picker -- */
 console.log('\npicker selector generation');
@@ -233,7 +387,8 @@ function check(label, el, expect) {
   const built = BFX_PICKER.selectorFor(el);
   const list = window.document.querySelectorAll(built.selector);
   ok(label + ' → ' + built.selector,
-    built.valid && Array.prototype.includes.call(list, el) && (!expect || expect.test(built.selector)),
+    built.valid && Array.prototype.includes.call(list, el) && (!expect || expect.test(built.selector)) &&
+      !/bfx-/.test(built.selector),
     'invalid or unexpected');
 }
 check('stories tray', window.document.querySelector('[data-pagelet="Stories"]'), /data-pagelet/);
@@ -245,6 +400,117 @@ check('sidebar advert', $('side-ad'));
 const feedPost = $('u-ok');
 const built = BFX_PICKER.selectorFor(feedPost);
 ok('feed post gets a selector anchored on its pagelet', /FeedUnit/.test(built.selector), built.selector);
+
+/* ------------------------------------------ facebook.com, October 2026 -- */
+console.log('\nfacebook.com as of October 2026 (test/fixtures/feed.html)');
+{
+  const w = boot(fs.readFileSync(path.join(__dirname, 'fixtures/feed.html'), 'utf8'));
+  const $$ = id => w.document.getElementById(id);
+  const by = id => $$(id) && $$(id).getAttribute('data-bfx-hidden-by');
+  const shown = id => !$$(id).closest('[data-bfx-hidden-by]');
+  const S = w.BFX_STORE;
+
+  w.BFX_ENGINE.apply(S.merge(null));
+  await frame();
+  ok('an ordinary post survives the defaults', shown('u-organic'), 'hidden by ' + by('u-organic'));
+  ok('an ad is caught by the word joiner in its header link', by('u-ad') === 'sponsored', 'got ' + by('u-ad'));
+  ok('an ad is caught by a label reading "Ad"', by('u-ad-label') === 'sponsored', 'got ' + by('u-ad-label'));
+  ok('an issue ad is caught by its "Sponsored" text', by('u-issue') === 'sponsored', 'got ' + by('u-issue'));
+  ok('a post with Follow in its title is suggested', by('u-sug') === 'suggested', 'got ' + by('u-sug'));
+  ok('a friend sharing a page post is not', shown('u-shared'), 'hidden by ' + by('u-shared'));
+  ok('people you may know, in Vietnamese, is caught by its repeated buttons', by('u-pymk') === 'pymk', 'got ' + by('u-pymk'));
+  ok('group suggestions under an unknown heading are caught too', by('u-groups') === 'pymk', 'got ' + by('u-groups'));
+  ok('the Reels shelf goes as a whole', by('u-reels') === 'reels', 'got ' + by('u-reels'));
+  ok('a phrase in the post body does not count as a header', shown('u-organic'));
+  ok('a post opened in a dialog is never judged', shown('dialog-post'), 'hidden by ' + by('dialog-post'));
+  ok('the whole red badge goes, not just its digits', by('badge') === 'badges', 'got ' + by('badge'));
+  ok('the sidebar ad goes', $$('side-ad').closest('[data-bfx-hidden-by]') !== null);
+
+  ok('a link that merely starts with a word joiner is not an ad', shown('u-pasted'), 'hidden by ' + by('u-pasted'));
+  ok('Marketplace: the tile with a word-joiner label goes', by('mp-ad') === 'adSweep', 'got ' + by('mp-ad'));
+  ok('Marketplace: the tile labelled "Ad" goes', by('mp-ad2') === 'adSweep', 'got ' + by('mp-ad2'));
+  ok('Marketplace: the listings and the grid stay', shown('mp-1') && shown('mp-2') && shown('mp-grid'));
+
+  /* React rewrites className when it re-renders; that used to un-hide ads. */
+  $$('u-ad').className = 'x1n2onr6 x1ja2u2z';
+  ok('a class rewrite cannot un-hide anything', by('u-ad') === 'sponsored');
+  $$('u-ad').removeAttribute('data-bfx-hidden-by');
+  $$('feedbox').appendChild(w.document.createElement('div'));
+  await frame();
+  ok('a stripped marker is put back on the next scan', by('u-ad') === 'sponsored', 'got ' + by('u-ad'));
+  $$('bfx-style').remove();
+  $$('feedbox').appendChild(w.document.createElement('div'));
+  await frame();
+  ok('a removed stylesheet is put back', !!$$('bfx-style') && $$('bfx-style').textContent.includes('{display:none !important}'));
+
+  $$('late-ref').setAttribute('aria-labelledby', 'lbl-ad');
+  await frame();
+  ok('an ad whose label is attached later is caught then', by('u-ad-late') === 'sponsored', 'got ' + by('u-ad-late'));
+
+  $$('u-shell').innerHTML = '<h4><a role="link" href="/x">Late Page</a><div role="button"><span>Follow</span></div></h4>Filled in';
+  await frame();
+  ok('an empty shell is judged once Facebook fills it', by('u-shell') === 'suggested', 'got ' + by('u-shell'));
+
+  const all = S.merge({ presets: Object.fromEntries(w.BFX_PRESETS.map(r => [r.id, true])) });
+  all.presets.feed = false;
+  w.BFX_ENGINE.apply(all);
+  await frame();
+  ok('the Like / Comment row is found by its button markers', by('bar') === 'postActions', 'got ' + by('bar'));
+  ok('the post around it stays', !$$('u-organic').hasAttribute('data-bfx-hidden-by'));
+  ok('comments in a dialog do not make the post look like a carousel', shown('dialog-post'), 'hidden by ' + by('dialog-post'));
+
+  w.BFX_ENGINE.apply(S.merge({ presets: {}, keywords: { enabled: true, terms: ['Facebook', 'Online status', 'crypto'] } }));
+  await frame();
+  ok('word blocks ignore unseen text: the "Facebook" decoys and the avatar\'s online dot',
+    shown('u-organic'), 'hidden by ' + by('u-organic'));
+  ok('but still catch words people can read', by('u-kw') === 'keyword', 'got ' + by('u-kw'));
+
+  w.BFX_ENGINE.apply(S.merge({ presets: { reactionsOnPosts: true } }));
+  await frame();
+  ok('a post shown because a friend was tagged is friend activity', by('u-tagged') === 'reactionsOnPosts', 'got ' + by('u-tagged'));
+
+  /* jsdom cannot play media, so the switch is checked through the event it
+   * listens for and the pause() it answers with. */
+  const video = $$('video');
+  let pauses = 0;
+  video.pause = () => { pauses++; };
+  const autoplay = () => video.dispatchEvent(new w.Event('play'));
+  w.BFX_ENGINE.apply(S.merge({ presets: { noAutoplay: true } }));
+  autoplay();
+  ok('a video that starts by itself is paused', pauses === 1, pauses + ' pauses');
+  video.dispatchEvent(new w.MouseEvent('pointerdown', { bubbles: true }));
+  autoplay();
+  ok('one started by a click plays on', pauses === 1, pauses + ' pauses');
+  w.BFX_ENGINE.apply(S.merge({ presets: { noAutoplay: false } }));
+  pauses = 0;
+  await new Promise(r => setTimeout(r, 1600));
+  autoplay();
+  ok('with the switch off, nothing is paused', pauses === 0, pauses + ' pauses');
+
+  const pick = el => {
+    const b = w.BFX_PICKER.selectorFor(el);
+    return Object.assign(b, { hits: Array.prototype.includes.call(w.document.querySelectorAll(b.selector), el) });
+  };
+  const post = pick($$('u-organic'));
+  ok('picking a post means every post from its author → ' + post.selector,
+    post.hits && post.author === 'Dana Example' && /aria-posinset/.test(post.selector));
+  ok('and that rule leaves other authors alone',
+    !Array.prototype.includes.call(w.document.querySelectorAll(post.selector), $$('u-shared')));
+  const tray = pick($$('stories'));
+  ok('the Stories tray is picked by its focus target → ' + tray.selector, tray.hits && /data-focus-target/.test(tray.selector));
+  const heading = pick(w.document.querySelector('#contacts h3'));
+  ok('Facebook\'s html-* classes are never used → ' + heading.selector, heading.hits && !/html-/.test(heading.selector));
+
+  w.BFX_ENGINE.apply(S.merge({ presets: { feed: true }, placeholders: true, keywords: { enabled: true, terms: ['Lovely day'] } }));
+  await frame();
+  ok('the feed switch still hides the feed when its first post is hidden by another rule',
+    by('feedbox') === 'feed', 'got ' + by('feedbox'));
+
+  w.BFX_ENGINE.apply(S.merge({ presets: { feed: true } }));
+  await frame();
+  ok('the feed switch hides the box around every post and the loading skeleton',
+    by('feedbox') === 'feed' && $$('loading').closest('[data-bfx-hidden-by]') !== null, 'got ' + by('feedbox'));
+}
 
 report();
 function report() {

@@ -6,13 +6,24 @@
   var engine = root.BFX_ENGINE;
   var picker = root.BFX_PICKER;
 
-  store.get().then(function (state) {
-    engine.apply(state);
-  });
+  var current = null;
 
-  store.onChange(function (state) {
+  function applyState(state) {
+    current = state;
     engine.apply(state);
-  });
+    guardRoute();
+  }
+
+  /* Pages that are blocked outright rather than trimmed. On a page load this
+   * runs as soon as settings are read, early in parsing; on in-app navigation,
+   * within a second, from the route watcher below. */
+  function guardRoute() {
+    var to = engine.redirectFor(current, location);
+    if (to) location.replace(to);
+  }
+
+  store.get().then(applyState);
+  store.onChange(applyState);
 
   /* Facebook is a single-page app: the path changes with no page load, which
    * matters for custom rules scoped to one page. Patching history.pushState
@@ -23,6 +34,7 @@
   function onRoute() {
     if (location.pathname === lastPath) return;
     lastPath = location.pathname;
+    guardRoute();
     engine.refresh();
   }
   setInterval(onRoute, 1000);
@@ -42,6 +54,7 @@
         sendResponse({
           ok: true,
           hidden: engine.hiddenCount(),
+          stats: engine.stats(),
           picking: picker.isActive(),
           path: location.pathname
         });

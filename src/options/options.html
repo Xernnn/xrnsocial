@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>BlockFB — Back up &amp; restore</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <main>
+    <header class="head">
+      <span class="logo">B</span>
+      <div>
+        <h1>Back up &amp; restore</h1>
+        <p class="dim">Right now: <span id="current">loading…</span></p>
+      </div>
+    </header>
+
+    <section class="card">
+      <h2>Back up</h2>
+      <p class="dim">Saves every switch, picked rule and blocked word to a file. Nothing is uploaded anywhere — the file goes to your downloads folder.</p>
+      <button id="export" class="primary">Download backup</button>
+    </section>
+
+    <section class="card">
+      <h2>Restore</h2>
+      <p class="dim">Replaces everything you have now with the contents of a backup file. Open Facebook tabs pick it up straight away.</p>
+      <input type="file" id="file" accept=".json,application/json" />
+      <p id="preview" class="dim"></p>
+      <button id="restore" class="primary" disabled>Replace my settings with this backup</button>
+      <p id="message" class="message"></p>
+    </section>
+  </main>
+
+  <script src="../common/presets.js"></script>
+  <script src="../common/storage.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

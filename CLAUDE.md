@@ -2,31 +2,35 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-BlockFB is a Manifest V3 Chrome/Edge extension that hides parts of Facebook (presets, a point-and-click picker, keyword blocks). There is no build step, no bundler, and no runtime dependencies. `jsdom` is only used by the test.
+BlockFB is a Manifest V3 Chrome/Edge extension that hides parts of Facebook (presets, a point-and-click picker, keyword blocks). There is no build step, no bundler, and no runtime dependencies. `jsdom` and `puppeteer-core` are only used by the tests. The project is a git repo on `main`.
 
 ## Commands
 
-- `npm test`: runs `test/smoke.js`, the only test file. It has no runner or filtering. Each check prints ✓/✗ and the process exits 1 on any failure. To focus on one area, temporarily comment out sections of `main()` in `test/smoke.js`.
+- `npm test`: runs `test/smoke.js` (jsdom, fast). It has no runner or filtering. Each check prints ✓/✗ and the process exits 1 on any failure. To focus on one area, temporarily comment out sections of `main()`. Sections share DOM and engine state, so a section that applies its own settings must re-apply `everything` before the next section relies on it.
+- `npm run test:browser`: runs `test/browser.js`, which loads the unpacked extension into Chrome for Testing headlessly. It serves `test/fixtures/feed.html` at `https://www.facebook.com/` through request interception, so content scripts inject for real. It changes settings through the service worker (`sw.evaluate('self.BFX_STORE.update(...)')`) and also drives the popup and options pages. Chrome comes from `CHROME_PATH` or the Playwright/Puppeteer cache. Branded Chrome won't load unpacked extensions from the command line. Run it after touching selectors, CSS, or anything in the popup or options page.
 - `npm run zip`: builds `blockfb.zip` (manifest, icons, src) for the Web Store.
 - Manual testing: `chrome://extensions` → Developer mode → **Load unpacked** → this folder. After editing content scripts, reload the extension and then reload the Facebook tab, because content scripts are injected only at page load.
 
 ## Module system (no imports)
 
-Every file in `src/` is an ES5 IIFE that attaches a global to `self`: `BFX_PRESETS`/`BFX_GROUPS` (presets.js), `BFX_STORE` (storage.js), `BFX_ENGINE` (engine.js), `BFX_PICKER` (picker.js). Later files read earlier globals, so **load order matters**, and it is declared in four places that must stay in sync when you add or rename a file:
+Every file in `src/` is an ES5 IIFE that attaches a global to `self`: `BFX_PRESETS`/`BFX_GROUPS` (presets.js), `BFX_STORE` (storage.js), `BFX_ENGINE` (engine.js), `BFX_PICKER` (picker.js). Later files read earlier globals, so **load order matters**, and it is declared in five places that must stay in sync when you add or rename a file:
 
 1. `manifest.json` → `content_scripts[0].js`
 2. `src/popup/popup.html` `<script>` tags (presets + storage only)
-3. `src/background/service-worker.js` `importScripts` (storage only)
-4. `test/smoke.js` eval list (all content scripts except `main.js`)
+3. `src/options/options.html` `<script>` tags (presets + storage only)
+4. `src/background/service-worker.js` `importScripts` (storage only; it has no `document`)
+5. `test/smoke.js` eval list (all content scripts except `main.js`)
 
 Match the existing style in `src/`: `var`, function expressions, `'use strict'`, no arrow functions, and comments that explain *why*.
 
 ## State and data flow
 
-- All settings live under **one key, `bfx`, in `chrome.storage.local`** (`src/common/storage.js`). Shape: `{ enabled, presets: {id: bool}, custom: [rule], keywords: { enabled, terms } }`.
+- All settings live under **one key, `bfx`, in `chrome.storage.local`** (`src/common/storage.js`). Shape: `{ enabled, presets: {id: bool}, custom: [rule], keywords: { enabled, terms }, placeholders }`. A custom rule is `{ id, selector, label, scope: 'all'|'path', path, enabled, createdAt }`.
 - `merge()` layers `DEFAULTS` under stored values. As a result, turning off a default-on preset must be stored as an explicit `false`. Default-on presets are listed in `storage.js` `DEFAULTS.presets`, not in `presets.js`.
-- Settings changes do **not** use messaging. The popup or service worker writes to storage, and `storage.onChanged` → `engine.apply(state)` in every open tab. Runtime messages (`bfx:pick`, `bfx:stopPick`, `bfx:status`, `bfx:rescan`, handled in `src/content/main.js`) are only for actions and querying tab status.
-- Facebook is an SPA. `main.js` polls `location.pathname` once a second and calls `engine.refresh()` so path-scoped custom rules update. Patching `history.pushState` would not work because content scripts run in an isolated world.
+- Write with `store.update(fn)` (read-modify-write), never `store.set()` of a copy held in a page. The popup routes every write through `mutate()` for this reason and re-renders on `store.onChange`. The `Alt+Shift+B` shortcut and other windows write while the popup is open.
+- Backups go through `store.toBackup()`/`store.fromBackup()`. `fromBackup` rebuilds the state field by field and drops picked rules whose selector fails `store.validSelector()`.
+- Settings changes do **not** use messaging. The popup or service worker writes to storage, and `storage.onChanged` → `engine.apply(state)` in every open tab. Runtime messages (`bfx:pick`, `bfx:stopPick`, `bfx:status`, `bfx:rescan`, handled in `src/content/main.js`) are only for actions and querying tab status. `bfx:status` returns `engine.stats()`: per-rule match counts that the popup shows as "3 here", "none here" or "broken".
+- Facebook is an SPA. `main.js` polls `location.pathname` once a second and calls `engine.refresh()` so path-scoped custom rules update. It also calls `guardRoute()`, which uses `engine.redirectFor()` to send `/reel(s)/` pages home when the Reels preset is on. Patching `history.pushState` would not work because content scripts run in an isolated world.
 
 ## Engine (`src/content/engine.js`)
 
@@ -37,26 +41,53 @@ Elements are hidden in two ways:
 
 How `apply()` works:
 - It bumps `generation`, rebuilds the sheet, and calls `unhideAll()`, so turning a rule off takes effect immediately.
-- Elements hidden by JS get class `bfx-hidden` plus `data-bfx-hidden-by="<ruleId|keyword>"`. The tests assert on that attribute.
-- Each element is judged at most once per generation, using the `__bfxGen` / `__bfxAdGen` expando properties.
+- Elements hidden by JS get **only attributes, never classes**: `data-bfx-hidden-by="<ruleId|keyword>"`, and the sheet's first rule is `[data-bfx-hidden-by]{display:none !important}`. React rewrites `className` whenever it re-renders an element (hover, scroll, new data). When hiding used a class, that silently un-hid ads on the live site; attributes React didn't set survive. The picker's page marker is `data-bfx-picking` for the same reason. Don't reintroduce class-based markers.
+- `hide()` also records the element in `hiddenEls`. On every scan, `reassert()` puts back any marker that was stripped from a still-connected element, and `ensureStyle()` re-inserts `#bfx-style` if the page dropped it. The tests and `stats()` rely on the attribute.
+- With `placeholders` on, per-unit hides (except the ids in `SILENT`) also get a `data-bfx-note`. The placeholder CSS in `buildCss` turns these into a clickable bar. Clicking one sets `data-bfx-revealed`, and the scan skips that unit and everything inside it for the rest of the page's life.
+- Each element is judged at most once per generation, using the `__bfxGen` / `__bfxAdGen` / `__bfxSideGen` / `__bfxBarGen` expandos. `firstLook()` doesn't stamp a label while its text is still empty, because Facebook fills text in a frame later.
+
+Live Facebook renders posts in pieces and virtualizes the feed, so a verdict about a unit (`UNIT_SELECTOR`, mainly `div[aria-posinset]`) only lasts until its content changes:
+- An empty unit (no `textContent`, i.e. a virtualized shell) isn't stamped. It gets judged once it fills.
+- The observer also watches `aria-labelledby` attribute changes, because Facebook attaches an ad's label late. `onMutations` collects targets into `dirty` (childList) and `relabelled` (attributes). On each scan, `invalidateChanged()` maps targets to units through the `__bfxUnit` cache. It re-judges a unit whose `textContent.length` changed, and always re-judges a relabelled unit. Group the targets by unit before doing any per-unit work: Facebook makes thousands of changes per frame.
+- A heuristic missing information calls `ctx.unsure()`. The unit then stays unstamped and is retried for up to `MAX_TRIES` scans.
+- Word blocks match `readableText()`, which leaves out `UNSEEN` subtrees: `aria-hidden` decoys (every post holds about 33 hidden "Facebook" spans), `svg` titles ("Shared with Public"), and `data-visualcompletion="ignore"` (the online dot's "Active"). Matching raw `textContent` would let "Facebook" or "public" hide every post.
+- Units are skipped when they are inside a hidden or revealed unit, nested in a `role="article"` (comments, quoted shares), or inside `role="dialog"` (a post the user opened).
 
 Heuristics come in two kinds, wired differently:
-- **Per-feed-unit**: the preset's `js.kind` must be a key in `HEURISTICS` (`sponsored`, `feedText`). Presets whose kind isn't in `HEURISTICS` are silently filtered out of `jsRules`.
-- **Global**: `badges`, `rightAds`, `adSweep`. These are keyed by **preset id**, not by kind. A new global heuristic must be added to both `GLOBAL_JS` and `runGlobalHeuristics()`.
+- **Per-feed-unit**: the preset's `js.kind` must be a key in `HEURISTICS` (`sponsored`, `suggested`, `recommendations`, `reels`, `feedText`). Presets whose kind isn't in `HEURISTICS` are silently filtered out of `jsRules`. `feedText` matches only `headText()`: the start of the unit with the message body (`data-ad-preview="message"`) and nested articles cut out. Its `phrases` are keyed by language, and all languages are tried at once.
+- **Global**: `badges`, `rightAds`, `adSweep`, `postActions`, `feed`. These are keyed by **preset id**, not by kind. A new global heuristic must be added to both `GLOBAL_JS` and `runGlobalHeuristics()`.
 
-Ad detection deliberately layers independent signals: ad-only markup, then ad-explainer links, then the "Sponsored" label. Facebook obfuscates the label with shuffled spans and hidden decoy letters, so `FUZZY` is a loose prefilter and `visibleText()`/`isVisible()` make the final call. `cardFor()` climbs from a label to the card-sized ancestor and must never hide a whole surface (feed, main, Stories tray, Marketplace grid).
+What identifies things on live Facebook (verified October 2026; re-verify before "fixing" any of it):
+- **Ads**: in the post header, a link whose **entire** text is a word joiner (U+2060), checked by `isAdSlot`/`hasAdJoiner` and present from first render. Facebook draws the visible "Ad" over that slot from another element, so the label never exists as text in the post. A link that merely *starts* with a joiner (check-ins, pasted text) is not an ad; this was seen in search results. The fallback is an `a [aria-labelledby]` whose referenced element reads exactly "Ad" (`referencedText`/`AD_LABEL`). Facebook now rarely attaches that reference, so don't rely on it. `sweepAds` uses the same slot test outside the feed (Watch, search and Marketplace, where tiles also show a visible "Ad"). It keeps a per-label verdict and re-checks known ad labels every scan, in case the card around them is rebuilt. Issue ads still show a visible "Sponsored". **Never use `data-ad-preview`, `data-ad-comet-preview` or `data-ad-rendering-role` as ad signals.** They are on every post; use them only as structure (e.g. `like_button`/`comment_button` markers for the action bar and counts).
+- **Suggested posts**: a `[role="button"]` (Follow/Join) inside the unit's *first* `h4` (the title). A shared page post has its own Follow button further down, so don't look past the first `h4`.
+- **Recommendation carousels** (people you may know, group suggestions): a unit with no `h4` whose buttons repeat the same text. Count only text with letters, and ignore buttons inside comments. The Reels shelf has the same shape and is excluded via `/reel/` links. Facebook obfuscates the label with shuffled spans and hidden decoy letters, so `FUZZY` is a loose prefilter and `visibleText()`/`isVisible()` make the final call. `cardFor()` climbs from a label to the card-sized ancestor and must never hide a whole surface (feed, main, Stories tray, Marketplace grid).
 
 ## Selector rules
 
-Facebook's class names (`x1n2onr6`) and React ids (`:r7:`) change with every build. Never use them in presets or picker output. Use only `data-pagelet`, `data-visualcompletion`, `data-testid`, `role`, `aria-label`, and short `href` prefixes. The picker (`src/content/picker.js`) filters generated classes and ids with `GENERATED_CLASS`/`GENERATED_ID`. When an element has no stable attribute of its own, the picker anchors to the nearest ancestor that has one and adds an `nth-child` tail.
+Facebook's class names (`x1n2onr6`) and React ids (`:r7:`) change with every build. Never use them in presets or picker output. Use only `data-pagelet`, `data-visualcompletion`, `data-testid`, `role`, `aria-label`, and short `href` prefixes. The picker (`src/content/picker.js`) filters generated classes and ids with `GENERATED_CLASS`/`GENERATED_ID`. That includes Facebook's `html-div`/`html-h3` classes, which are on nearly every element. It never uses BlockFB's own `bfx-*` classes or `data-visualcompletion`, whose values are shared by hundreds of elements. Picking a whole post (`[aria-posinset]`) produces `authorOf()`: a "posts from this author" rule keyed on the first title link's href up to its query string. When an element has no stable attribute of its own, the picker anchors to the nearest ancestor that has one and adds an `nth-child` tail.
 
-Preset schema (`src/common/presets.js`): `{ id, group, label, desc, css?: [selectors], style?: rawCss, js?: { kind, ...params } }`. Popup groups come from the order of `group` values. The README states the preset count (31) and the default-on count (7). Update those numbers when you add presets.
+Chrome rejects `:has()` nested inside `:has()`, but jsdom accepts it. Only `npm run test:browser` catches that, which is why "smallest box containing both X and Y" rules (like `postActions`) are JS heuristics. Custom selectors pass `store.validSelector()` before they reach the stylesheet, because one that doesn't parse could close its rule and inject CSS.
 
-## Test harness quirks (`test/smoke.js`)
+Preset schema (`src/common/presets.js`): `{ id, group, label, desc, css?: [selectors], style?: rawCss, js?: { kind, ...params }, behavior?: true }`. `behavior` marks a switch the engine implements directly by preset id (`noAutoplay` pauses videos started without a recent pointerdown or Enter/Space). Like effect-only presets, it has no count in `stats()`. Popup groups come from the order of `group` values. The README states the preset count (34) and the default-on count (7). Update those numbers when you add presets.
+
+## Test harness quirks
 
 - jsdom has no layout, so `getBoundingClientRect` is mocked: width comes from text length, and **height comes from the fixture's `data-h` attribute** (default 24). Size-dependent logic (`cardFor`'s 90px and 85%-viewport thresholds, the badge 40px cap) needs `data-h` set on fixture elements.
-- jsdom's `:has()` support is partial, so preset selectors that fail to parse are *reported*, not counted as failures. Check those in Chrome.
-- The test does not load `main.js`, the popup, or the service worker. `chrome.*` is a minimal stub whose `onChanged` never fires, so tests call `BFX_ENGINE.apply()` directly and wait about one frame.
+- jsdom's `:has()` support differs from Chrome's in both directions. The smoke test only *reports* selectors jsdom can't parse; the browser test asserts that Chrome parses all of them.
+- `test/fixtures/feed.html` is the current Facebook structure, copied from the live site with made-up text. Both suites load it: the smoke test's last section via `boot()`, and the browser test as the page served at facebook.com. Boxes carry inline sizes for Chrome and `data-h` for jsdom. The smoke test's inline `PAGE` is the older markup (`role="feed"`, `data-pagelet`), kept so the legacy hooks stay working. `test/fixtures/snapshots/*.html` are the user's saved Facebook pages. They are gitignored, served with `<script>` tags stripped, and checked only for "ad rules don't hide most of the feed".
+- The smoke test does not load `main.js`, the popup, or the service worker. `chrome.*` is a minimal stub whose `onChanged` never fires, so tests call `BFX_ENGINE.apply()` directly and wait about one frame.
+
+## Checking against live Facebook
+
+Fixtures only prove the code matches the fixtures. When rules "don't work", measure the real site before changing anything. Check that hidden things *stay* hidden while scrolling and hovering, not just that they get hidden: the class-wipe bypass only showed up over time. This is what worked:
+- Launch Chrome for Testing headed with `--user-data-dir=<scratch dir> --remote-debugging-port=9333 --load-extension=<repo> --disable-extensions-except=<repo>`. The user logs in themselves; never handle credentials. Then drive it with `puppeteer.connect({ browserURL })`.
+- Facebook ignores synthetic `window.scrollBy` for loading more posts; use `page.mouse.wheel`. A minimized window renders nothing and ignores input; restore it via `Browser.setWindowBounds`.
+- Reload the unpacked extension from a `chrome://extensions` tab with `chrome.management.setEnabled(id, false)` then `true`. `chrome.runtime.reload()` and `developerPrivate.reload` leave a command-line-loaded extension disabled.
+- To test the popup against a live tab, open `popup.html` with `chrome.tabs.create({ active: false })` in Facebook's window. Its `tabs.query({ active: true, currentWindow: true })` then returns the Facebook tab. `chrome.action.openPopup()` needs OS window focus, which Wayland refuses. The service worker sleeps; a storage change wakes it.
+- To call `BFX_ENGINE`/`BFX_STORE` in the page, find the content script's execution context via CDP `Runtime.executionContextCreated` (name contains "BlockFB") and evaluate there.
+- Classify posts independently of the engine (joiner slot/label → ad, button in first `h4` → suggested), then compare with `data-bfx-hidden-by`. For a visual ground truth, element-screenshot each visible post's header block (`h4` up to the block holding the "·" line). Page-coordinate clips are off by the scroll position.
+- The test window may carry the user's own settings: save `BFX_STORE.get()` before a live test and `BFX_STORE.set()` it back afterwards, never reset to defaults.
+- Probe pitfalls: below about 1100 px of window width Facebook hides the left sidebar itself. The grey/blur effects switch off while the mouse hovers a post. The story viewer ignored automated Next clicks and arrow keys, so story ads stay untested. Don't open chat windows (that marks messages seen), and don't keep personal data outside the scratch profile.
 
 ## Other notes
 
