@@ -1,10 +1,11 @@
 /* Point-and-click element picker.
  *
  * The hard part is not the overlay, it is producing a selector that still
- * matches tomorrow. Facebook's class names are generated per build
- * (x1n2onr6, xdt5ytf ...) and its React ids look like ":r7:", so both are
- * poison. We build selectors out of the attributes Facebook cannot churn
- * without breaking its own accessibility and instrumentation.
+ * matches tomorrow. Facebook's and Instagram's class names are generated per
+ * build (x1n2onr6, xdt5ytf ...) and React ids look like ":r7:", so both are
+ * poison. We build selectors out of the attributes sites cannot churn
+ * without breaking their own accessibility and instrumentation, plus the
+ * hooks each site pack vouches for.
  */
 (function (root) {
   'use strict';
@@ -324,8 +325,9 @@
       ui.warn.textContent = 'Hides every post from ' + built.author + ', wherever it shows up.';
       ui.warn.dataset.level = 'info';
     } else if (inFeed && !built.broad) {
-      ui.warn.textContent = 'This lives inside the feed, which Facebook rebuilds constantly. ' +
-        'A keyword block will outlast this rule.';
+      var info = root.BFX_SITES && root.BFX_SITES.info(site().id);
+      ui.warn.textContent = 'This lives inside the feed, which ' + (info ? info.name : 'the site') +
+        ' rebuilds constantly. A keyword block will outlast this rule.';
       ui.warn.dataset.level = 'warn';
     } else if (built.count > 8) {
       ui.warn.textContent = 'Hides ' + built.count + ' elements on this page. Press a to narrow it to one.';
