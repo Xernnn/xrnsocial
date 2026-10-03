@@ -48,7 +48,7 @@ function findChrome() {
 /* The preset list, read the same way the extension reads it. */
 function loadPresets(siteId) {
   const sandbox = { self: {} };
-  for (const file of ['src/common/sites.js', 'src/sites/facebook.js', 'src/sites/reddit.js', 'src/sites/x.js']) {
+  for (const file of ['src/common/sites.js', 'src/sites/facebook.js', 'src/sites/reddit.js', 'src/sites/x.js', 'src/sites/linkedin.js']) {
     vm.runInNewContext(fs.readFileSync(path.join(root, file), 'utf8'), sandbox);
   }
   return sandbox.self.BFX_SITES.get(siteId || 'facebook').presets;
@@ -95,6 +95,7 @@ async function until(fn, timeout = 3000) {
     let served = fs.readFileSync(path.join(fixtures, 'feed.html'), 'utf8');
     const redditDoc = fs.readFileSync(path.join(fixtures, 'reddit.html'), 'utf8');
     const xDoc = fs.readFileSync(path.join(fixtures, 'x.html'), 'utf8');
+    const linkedinDoc = fs.readFileSync(path.join(fixtures, 'linkedin.html'), 'utf8');
     const page = await browser.newPage();
     await page.setRequestInterception(true);
     page.on('request', req => {
@@ -105,6 +106,8 @@ async function until(fn, timeout = 3000) {
         req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: redditDoc });
       } else if (/(^|\.)x\.com$/.test(url.hostname) && req.resourceType() === 'document') {
         req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: xDoc });
+      } else if (/(^|\.)linkedin\.com$/.test(url.hostname) && req.resourceType() === 'document') {
+        req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: linkedinDoc });
       } else if (url.protocol === 'http:' || url.protocol === 'https:') {
         req.abort();
       } else {
@@ -461,6 +464,67 @@ async function until(fn, timeout = 3000) {
     await page.goto('https://x.com/alice/status/111', { waitUntil: 'domcontentloaded' });
     ok('x verifiedReplies: under an opened post, the verified reply goes and the post stays',
       await until(() => isHidden('cell-video')) && !(await isHidden('cell-plain')));
+    await resetState();
+
+    /* ------------------------------------------------------------ linkedin -- */
+    console.log('\nlinkedin.com in real Chrome');
+    await resetState();
+    await page.bringToFront();
+    await page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#bfx-style');
+    const liPresets = loadPresets('linkedin');
+    const liIds = liPresets.map(r => r.id);
+    /* Feed items are display: contents, never "visible" themselves: judge
+     * the listitem inside. */
+    const liGone = id => page.evaluate(i => {
+      const el = document.getElementById(i);
+      if (!el) return false;
+      const box = el.matches('[data-testid="mainFeed"] > div') ? el.querySelector('[role="listitem"]') : el;
+      return !box.checkVisibility();
+    }, id);
+    ok('every LinkedIn selector parses in Chrome', (await page.evaluate(list => list.filter(sel => {
+      try { document.querySelectorAll(sel); return false; } catch (e) { return true; }
+    }), liPresets.flatMap(r => r.css || []).concat([liPresets.find(r => r.id === 'blurFeed').style.split('{')[0]]))).length === 0);
+    ok('promoted posts go: by label, in German, and by ad-tracking link',
+      await until(() => liGone('item-ad')) && await liGone('item-ad-de') && await liGone('item-ad-link'));
+    ok('Premium goes in the feed, the left column and the top bar', await liGone('item-premium') && await liGone('left-premium') && await liGone('nav-premium'));
+    ok('ordinary posts and the rest of the left column stay', !(await liGone('item-plain')) && !(await liGone('left-profile')) && !(await liGone('item-suggested')));
+    ok('the unread badges go', await liGone('badge-msg') && await liGone('badge-notif'));
+
+    const liOnly = list => setState(`s => { const p = s.sites.linkedin.presets; ${JSON.stringify(liIds)}.forEach(k => { p[k] = false; }); ${list.map(id => `p.${id} = true;`).join(' ')} }`);
+    const liCases = [
+      ['suggested', 'posts from people you don\'t follow', ['item-suggested'], ['item-plain', 'item-activity']],
+      ['activity', 'posts shown because of someone else', ['item-activity'], ['item-plain', 'item-suggested']],
+      ['jobs', 'the jobs carousel', ['item-jobs'], ['item-plain']],
+      ['videoPosts', 'video posts, whole', ['item-video'], ['item-plain']],
+      ['composer', 'the post box', ['item-composer'], ['item-plain']],
+      ['postActions', 'the button row', ['actions-plain'], ['text-plain', 'counts-plain']],
+      ['counts', 'the counts line', ['counts-plain'], ['actions-plain', 'text-plain']],
+      ['comments', 'comments under posts', ['comments-plain'], ['text-plain']],
+      ['media', 'the picture, not the header or text', ['media-plain'], ['head-plain', 'text-plain', 'activity-author']],
+      ['leftSidebar', 'the left column', ['left'], ['feed']],
+      ['rightSidebar', 'the right column', ['right'], ['feed']],
+      ['news', 'LinkedIn News', ['right-news'], ['right-games']],
+      ['games', "today's puzzles", ['right-games'], ['right-news']]
+    ];
+    for (const [id, what, hide, keep] of liCases) {
+      await liOnly([id]);
+      const hid = await until(async () => {
+        for (const g of hide) if (!(await liGone(g))) return false;
+        return true;
+      });
+      let keeps = true;
+      for (const k of keep) if (await liGone(k)) keeps = false;
+      await liOnly([]);
+      const back = await until(async () => {
+        for (const g of hide) if (await liGone(g)) return false;
+        return true;
+      });
+      ok(`linkedin ${id}: hides ${what}, keeps the rest, and gives it back when off`, hid && keeps && back);
+    }
+    await liOnly(['blurFeed']);
+    ok('linkedin blur lands on the post box, not the display: contents item', await until(() => page.evaluate(() =>
+      getComputedStyle(document.getElementById('li-plain')).filter.includes('blur'))));
     await resetState();
 
     /* ----------------------------------------------------------- snapshots -- */

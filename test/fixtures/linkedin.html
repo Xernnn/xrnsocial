@@ -1,0 +1,156 @@
+<!doctype html>
+<!-- linkedin.com/feed (signed in) as it was built in October 2026, cut down to
+     the parts the LinkedIn pack keys on. Structure copied from the live site:
+     items are display: contents around one role="listitem", posts are
+     sections under a screen-reader h2, icons carry data-token-id. Every name
+     and line of text is made up. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>(8) Feed | LinkedIn</title></head>
+<body style="margin:0;font:14px sans-serif">
+<header>
+  <nav data-testid="primary-nav">
+    <ul>
+      <li><a href="/feed/" aria-label="Home">Home</a></li>
+      <li><a href="/mynetwork/" aria-label="Network">Network</a></li>
+      <li><a href="/messaging/" aria-label="Messaging, 1 new notification" id="nav-msg"><span id="badge-msg"><span>1</span></span>Messaging</a></li>
+      <li><a href="/notifications/" aria-label="Notifications, 8 new notifications"><span id="badge-notif"><span>8</span></span>Notifications</a></li>
+      <li><a href="/premium/products/" id="nav-premium">Try Premium</a></li>
+    </ul>
+  </nav>
+</header>
+
+<main style="display:flex">
+  <aside aria-label="Sidebar" id="left" style="display:block;width:220px">
+    <div><div>
+      <div id="left-profile"><a href="/in/me-example/"><figure><img alt="" width="64"></figure>Sam Example</a></div>
+      <div id="left-premium"><a href="/premium/redeem/?offer=1">Try Premium: 50% off</a></div>
+      <div id="left-stats"><a href="/me/profile-views/">Profile viewers 6</a><a href="/analytics/creator/">Post impressions 2</a></div>
+      <div id="left-shortcuts"><a href="/my-items/saved-posts/">Saved items</a><a href="/groups/">Groups</a><a href="/events/">Events</a></div>
+    </div></div>
+  </aside>
+
+  <div style="display:block;width:560px">
+    <div data-testid="mainFeed" role="list" id="feed">
+
+      <!-- A Premium offer. -->
+      <div data-lazy-mount-id="a1" style="display: contents;" id="item-premium"><div><div><div role="listitem">
+        <p>Invest in your long-term growth</p><a href="/premium/products/?upsell=feed">Try Premium</a>
+      </div></div></div></div>
+
+      <!-- The post box. -->
+      <div data-lazy-mount-id="a2" style="display: contents;" id="item-composer"><div><div><div role="listitem">
+        <a href="/in/me-example/"><figure><img alt=""></figure></a><button>Start a post</button><a href="/article/new/">Write article</a>
+      </div></div></div></div>
+
+      <!-- A post from a connection: header, text, picture, counts, buttons. -->
+      <div data-lazy-mount-id="a3" style="display: contents;" id="item-plain" data-h="400"><div><div><div role="listitem" id="li-plain"><div>
+        <h2><span>Feed post</span></h2>
+        <div id="head-plain">
+          <a href="/in/ana-example/?mini=true"><figure><svg role="img" aria-label="Ana Example’s profile" data-token-id="356"></svg><img alt=""></figure></a>
+          <div><a href="/in/ana-example/"><p><span>Ana Example</span></p></a><p><span>Data engineer</span></p><p><span>2h • Edited</span></p></div>
+          <button aria-label="Open control menu for post by Ana Example"><span><svg data-token-id="383"></svg></span></button>
+          <button aria-label="Hide post by Ana Example"><span><svg data-token-id="206"></svg></span></button>
+        </div>
+        <p><span data-testid="expandable-text-box" id="text-plain">Shipped our new pipeline today, Facebook-free</span></p>
+        <div id="media-plain"><a href="/feed/update/1/"><figure><img alt="" width="550" height="300" style="width:550px;height:300px"></figure></a></div>
+        <div id="counts-plain"><a href="/feed/update/1/reactions/"><div><ul role="presentation"><li><svg data-token-id="17"></svg></li></ul><p><span><span>8 reactions</span></span></p></div></a><div role="button"><p><span>2 comments</span></p></div></div>
+        <hr role="presentation">
+        <div id="actions-plain"><div>
+          <button aria-label="Reaction button state: no reaction"><svg data-token-id="289"></svg>Like</button>
+          <button aria-label="Open reactions menu"><svg data-token-id="380"></svg></button>
+          <button><svg data-token-id="202"></svg>Comment</button>
+          <button><svg data-token-id="255"></svg>Repost</button>
+          <button><svg data-token-id="232"></svg>Send</button>
+        </div></div>
+        <div data-testid="CgsIabc-commentListxyzFeedType_MAIN_FEED_RELEVANCE" id="comments-plain"><p>Nice work!</p></div>
+      </div></div></div></div></div>
+
+      <!-- A promoted post: "Promoted" where the time would be, no hide button. -->
+      <div data-lazy-mount-id="a4" style="display: contents;" id="item-ad" data-h="300"><div><div><div role="listitem"><div>
+        <h2><span>Feed post</span></h2>
+        <div>
+          <a href="/company/acme-example/"><figure><svg role="img" aria-label="View company: Acme" data-token-id="358"></svg><img alt=""></figure></a>
+          <div><a href="/company/acme-example/"><p><span>Acme</span></p></a><p><span>12,345 followers</span></p><p><span>Promoted</span></p></div>
+          <button aria-label="Open control menu for post by Acme"><span><svg data-token-id="383"></svg></span></button>
+        </div>
+        <p><span data-testid="expandable-text-box">Our software does things</span></p>
+      </div></div></div></div></div>
+
+      <!-- Promoted in German, and one caught by its ad-tracking link. -->
+      <div data-lazy-mount-id="a5" style="display: contents;" id="item-ad-de" data-h="300"><div><div><div role="listitem"><div>
+        <h2><span>Feed post</span></h2>
+        <div>
+          <a href="/company/firma-example/"><figure><img alt=""></figure></a>
+          <div><p><span>Firma</span></p><p><span>Gesponsert</span></p></div>
+          <button><span><svg data-token-id="383"></svg></span></button>
+        </div>
+        <p><span data-testid="expandable-text-box">Angebot</span></p>
+      </div></div></div></div></div>
+      <div data-lazy-mount-id="a6" style="display: contents;" id="item-ad-link" data-h="300"><div><div><div role="listitem"><div>
+        <h2><span>Feed post</span></h2>
+        <div><a href="/school/uni-example/"><figure><img alt=""></figure></a><div><p><span>Uni</span></p></div><button><span><svg data-token-id="383"></svg></span></button></div>
+        <p><span data-testid="expandable-text-box">Open day</span></p>
+        <a href="https://example.edu/open-day?utm_source=linkedin&amp;li_fat_id=abc-123">Register</a>
+      </div></div></div></div></div>
+
+      <!-- From someone you don't follow: a Follow button in the header. -->
+      <div data-lazy-mount-id="a7" style="display: contents;" id="item-suggested" data-h="300"><div><div><div role="listitem"><div>
+        <h2><span>Feed post</span></h2>
+        <div>
+          <a href="/in/ben-example/"><figure><img alt=""></figure></a>
+          <div><p><span>Ben Example</span></p><p><span>• 3rd+</span></p><p><span>1d</span></p></div>
+          <button aria-label="Ben Example"><span><svg data-token-id="86"></svg><span><span>Follow</span></span></span></button>
+          <button><span><svg data-token-id="383"></svg></span></button>
+          <button><span><svg data-token-id="206"></svg></span></button>
+        </div>
+        <p><span data-testid="expandable-text-box">Ten tips for your career</span></p>
+      </div></div></div></div></div>
+
+      <!-- Shown because of someone's activity: the line with the menu, a rule,
+           then the author's block. The author is followed already. -->
+      <div data-lazy-mount-id="a8" style="display: contents;" id="item-activity" data-h="300"><div><div><div role="listitem"><div>
+        <h2><span>Feed post</span></h2>
+        <div id="activity-line">
+          <a href="/company/widget-example/"><figure><img alt=""></figure></a><p><span>Widget Co commented</span></p>
+          <button><span><svg data-token-id="383"></svg></span></button>
+          <button><span><svg data-token-id="206"></svg></span></button>
+        </div>
+        <hr role="presentation">
+        <div id="activity-author">
+          <a href="/in/dana-example/"><figure><svg role="img" aria-label="Dana Example’s profile"></svg><img alt=""></figure></a>
+          <div><p><span>Dana Example</span></p><p><span>3h</span></p></div>
+        </div>
+        <p><span data-testid="expandable-text-box">Thoughts on remote work</span></p>
+      </div></div></div></div></div>
+
+      <!-- A video post, the jobs carousel, and one a word block will catch. -->
+      <div data-lazy-mount-id="a9" style="display: contents;" id="item-video" data-h="300"><div><div><div role="listitem"><div>
+        <h2><span>Feed post</span></h2>
+        <div><a href="/company/tv-example/"><figure><img alt=""></figure></a><div><p><span>TV</span></p><p><span>5h</span></p></div><button><span><svg data-token-id="383"></svg></span></button><button><span><svg data-token-id="206"></svg></span></button></div>
+        <p><span data-testid="expandable-text-box">Watch our talk</span></p>
+        <div><div role="region" aria-label="Video Player"><video></video></div></div>
+      </div></div></div></div></div>
+      <div data-lazy-mount-id="a10" style="display: contents;" id="item-jobs" data-h="300"><div><div><div role="listitem"><div>
+        <h2><span>Feed post</span></h2>
+        <p>Jobs recommended for you</p>
+        <div data-testid="carousel-container"><div data-testid="carousel"><a href="/jobs/search-results/?currentJobId=1">Data analyst</a></div></div>
+      </div></div></div></div></div>
+      <div data-lazy-mount-id="a11" style="display: contents;" id="item-kw" data-h="300"><div><div><div role="listitem"><div>
+        <h2><span>Feed post</span></h2>
+        <div><a href="/in/eve-example/"><figure><img alt=""></figure></a><div><p><span>Eve Example</span></p><p><span>4h</span></p></div><button><span><svg data-token-id="383"></svg></span></button><button><span><svg data-token-id="206"></svg></span></button></div>
+        <p><span data-testid="expandable-text-box">Buy CRYPTO now</span></p>
+      </div></div></div></div></div>
+    </div>
+  </div>
+
+  <aside aria-label="Aside" id="right" style="display:block;width:300px">
+    <div><div>
+      <div id="right-news"><h2>LinkedIn News</h2><a href="https://www.linkedin.com/news/story/a-story-1/">A made-up story</a><a href="https://www.linkedin.com/news/story/b-story-2/">Another story</a></div>
+      <div id="right-promo"><a href="/company/gadget-example/"><figure><img alt=""></figure></a><p><span>Gadget</span></p><p><span>Promoted</span></p></div>
+      <div componentkey="feedRightNavGamesComponentRef" id="right-games"><a href="/games/zip/">Zip</a></div>
+      <div id="right-footer"><footer><a href="https://about.linkedin.com/">About</a><a href="https://www.linkedin.com/ad/start/">Advertise</a></footer></div>
+    </div></div>
+  </aside>
+</main>
+</body>
+</html>
