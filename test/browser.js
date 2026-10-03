@@ -48,7 +48,7 @@ function findChrome() {
 /* The preset list, read the same way the extension reads it. */
 function loadPresets(siteId) {
   const sandbox = { self: {} };
-  for (const file of ['src/common/sites.js', 'src/sites/facebook.js', 'src/sites/reddit.js', 'src/sites/x.js', 'src/sites/linkedin.js']) {
+  for (const file of ['src/common/sites.js', 'src/sites/facebook.js', 'src/sites/reddit.js', 'src/sites/x.js', 'src/sites/linkedin.js', 'src/sites/instagram.js']) {
     vm.runInNewContext(fs.readFileSync(path.join(root, file), 'utf8'), sandbox);
   }
   return sandbox.self.BFX_SITES.get(siteId || 'facebook').presets;
@@ -96,6 +96,7 @@ async function until(fn, timeout = 3000) {
     const redditDoc = fs.readFileSync(path.join(fixtures, 'reddit.html'), 'utf8');
     const xDoc = fs.readFileSync(path.join(fixtures, 'x.html'), 'utf8');
     const linkedinDoc = fs.readFileSync(path.join(fixtures, 'linkedin.html'), 'utf8');
+    const instagramDoc = fs.readFileSync(path.join(fixtures, 'instagram.html'), 'utf8');
     const page = await browser.newPage();
     await page.setRequestInterception(true);
     page.on('request', req => {
@@ -108,6 +109,8 @@ async function until(fn, timeout = 3000) {
         req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: xDoc });
       } else if (/(^|\.)linkedin\.com$/.test(url.hostname) && req.resourceType() === 'document') {
         req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: linkedinDoc });
+      } else if (/(^|\.)instagram\.com$/.test(url.hostname) && req.resourceType() === 'document') {
+        req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: instagramDoc });
       } else if (url.protocol === 'http:' || url.protocol === 'https:') {
         req.abort();
       } else {
@@ -525,6 +528,52 @@ async function until(fn, timeout = 3000) {
     await liOnly(['blurFeed']);
     ok('linkedin blur lands on the post box, not the display: contents item', await until(() => page.evaluate(() =>
       getComputedStyle(document.getElementById('li-plain')).filter.includes('blur'))));
+    await resetState();
+
+    /* ----------------------------------------------------------- instagram -- */
+    console.log('\ninstagram.com in real Chrome');
+    await resetState();
+    await page.bringToFront();
+    await page.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#bfx-style');
+    const igPresets = loadPresets('instagram');
+    const igIds = igPresets.map(r => r.id);
+    ok('every Instagram selector parses in Chrome', (await page.evaluate(list => list.filter(sel => {
+      try { document.querySelectorAll(sel); return false; } catch (e) { return true; }
+    }), igPresets.flatMap(r => r.css || []))).length === 0);
+    ok('ads go, labelled or not', await until(() => isHidden('a-ad')) && await until(() => isHidden('a-ad-quiet')));
+    ok('reels go by default, with the menu item; ordinary posts stay', await isHidden('a-reel') && await isHidden('menu-reels') &&
+      !(await isHidden('a-plain')) && !(await isHidden('a-video')) && !(await isHidden('a-suggested')));
+    ok('the Messages badge goes', await isHidden('badge'));
+    await page.goto('https://www.instagram.com/reels/CCC/', { waitUntil: 'domcontentloaded' });
+    ok('opening a reel with Reels on lands on the feed', await until(() => page.evaluate(() => location.pathname === '/'), 5000));
+    await page.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded' });
+
+    const igOnly = list => setState(`s => { const p = s.sites.instagram.presets; ${JSON.stringify(igIds)}.forEach(k => { p[k] = false; }); ${list.map(id => `p.${id} = true;`).join(' ')} }`);
+    const igCases = [
+      ['suggested', 'posts from accounts you don\'t follow', ['a-suggested'], ['a-plain']],
+      ['videoPosts', 'video posts', ['a-video', 'a-reel'], ['a-plain']],
+      ['stories', 'the stories tray', ['stories'], ['posts']],
+      ['postActions', 'the button row', ['actions-plain'], ['media-plain', 'likes-plain']],
+      ['counts', 'the counts, not the buttons', ['count-likes', 'likes-plain'], ['actions-plain']],
+      ['rightSidebar', 'the right column', ['right-column'], ['posts']],
+      ['threadsLink', 'the Threads link', ['menu-threads'], ['menu-messages']]
+    ];
+    for (const [id, what, hide, keep] of igCases) {
+      await igOnly([id]);
+      const hid = await until(async () => {
+        for (const g of hide) if (!(await isHidden(g))) return false;
+        return true;
+      });
+      let keeps = true;
+      for (const k of keep) if (await isHidden(k)) keeps = false;
+      await igOnly([]);
+      const back = await until(async () => {
+        for (const g of hide) if (await isHidden(g)) return false;
+        return true;
+      });
+      ok(`instagram ${id}: hides ${what}, keeps the rest, and gives it back when off`, hid && keeps && back);
+    }
     await resetState();
 
     /* ----------------------------------------------------------- snapshots -- */

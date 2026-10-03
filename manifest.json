@@ -60,6 +60,7 @@
         "src/sites/reddit.js",
         "src/sites/x.js",
         "src/sites/linkedin.js",
+        "src/sites/instagram.js",
         "src/common/storage.js",
         "src/content/engine.js",
         "src/content/picker.js",

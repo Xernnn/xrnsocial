@@ -1,0 +1,122 @@
+<!doctype html>
+<!-- instagram.com (signed in) as it was built in October 2026, cut down to the
+     parts the Instagram pack keys on. Structure copied from the live site:
+     posts are articles with a header row (avatar ring on a canvas, name,
+     time, maybe Follow, the "…" icon), media, then the action bar and likes
+     line as the first two sections. Every name and line of text is made up. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>(3) Instagram</title></head>
+<body style="margin:0;font:14px sans-serif">
+<div style="display:flex">
+  <div id="menu" style="display:block;width:240px">
+    <a href="/" role="link"><svg aria-label="Home"></svg>Home</a>
+    <a href="/reels/" role="link" id="menu-reels"><svg aria-label="Reels"></svg>Reels</a>
+    <a href="/direct/inbox/" role="link" id="menu-messages"><svg aria-label="Messages"></svg><div id="badge"><span>3</span></div>Messages</a>
+    <a href="/explore/" role="link"><svg aria-label="Search"></svg>Search</a>
+    <a href="https://www.threads.com/" id="menu-threads">Threads</a>
+  </div>
+
+  <main role="main" style="display:block;width:1000px">
+    <div style="display:flex" id="columns">
+      <div id="feed-column" style="display:block;width:630px">
+        <div id="stories"><div role="presentation"><div><ul>
+          <li><div role="button" aria-label="Story by someone_a, not seen"><canvas></canvas><span role="link"><img alt=""></span></div></li>
+          <li><div role="button" aria-label="Story by someone_b, seen"><canvas></canvas><span role="link"><img alt=""></span></div></li>
+        </ul></div></div></div>
+
+        <div id="posts">
+          <!-- A post from an account you follow. -->
+          <article id="a-plain" data-h="500"><div>
+            <div id="head-plain">
+              <span><div role="button"><canvas></canvas><span role="link"><img alt=""></span></div></span>
+              <div><div><a href="/alice_example/" role="link"><span>alice_example</span></a><div><span>•</span><a href="/p/AAA/"><time datetime="2026-10-01T10:00:00.000Z">2 d</time></a></div></div></div>
+              <div><div role="button"><svg aria-label="More Options"></svg></div></div>
+            </div>
+            <div id="media-plain"><div><img alt="" style="width:470px;height:470px"></div></div>
+            <div>
+              <section id="actions-plain"><div>
+                <span><div role="button"><span><svg aria-label="Like"></svg></span></div></span>
+                <span><div role="button"><svg aria-label="Comment"></svg></div></span>
+                <span role="button" id="count-likes">227</span>
+                <div role="button"><svg aria-label="Share"></svg></div>
+              </div><div role="button"><div role="button"><svg aria-label="Save"></svg></div></div></section>
+              <section id="likes-plain"><span>Liked by bob_example and others</span></section>
+              <div><span>A quiet morning by the lake</span></div>
+            </div>
+          </div></article>
+
+          <!-- An ad: "Ad" where the time would be, and a redirect link. -->
+          <article id="a-ad" data-h="500"><div>
+            <div>
+              <span><div role="button"><canvas></canvas><span role="link"><img alt=""></span></div></span>
+              <div><div><a href="/brand_example/" role="link"><span>brand_example</span></a><svg aria-label="Verified"></svg></div><span><span>Ad</span></span></div>
+              <div><div role="button"><svg aria-label="More Options"></svg></div></div>
+            </div>
+            <div><video></video></div>
+            <div><a href="https://www.facebook.com/ads/ig_redirect/?d=1" rel="nofollow" target="_blank">Shop now</a></div>
+          </div></article>
+
+          <!-- An ad with neither: no time, and a label in a language we don't know. -->
+          <article id="a-ad-quiet" data-h="500"><div>
+            <div>
+              <span><div role="button"><canvas></canvas><span role="link"><img alt=""></span></div></span>
+              <div><div><a href="/shop_example/" role="link"><span>shop_example</span></a></div><span><span>Annonce payée</span></span></div>
+              <div><div role="button"><svg aria-label="More Options"></svg></div></div>
+            </div>
+            <div><img alt=""></div>
+          </div></article>
+
+          <!-- From an account you don't follow: a text-only Follow button. -->
+          <article id="a-suggested" data-h="500"><div>
+            <div>
+              <span><div role="button"><canvas></canvas><span role="link"><img alt=""></span></div></span>
+              <div><div><a href="/carl_example/" role="link"><span>carl_example</span></a><div><span>•</span><a href="/p/BBB/"><time datetime="2026-09-28T10:00:00.000Z">1 w</time></a></div></div><div role="button">Follow</div></div>
+              <div><div role="button"><svg aria-label="More Options"></svg></div></div>
+            </div>
+            <div><img alt=""></div>
+          </div></article>
+
+          <!-- A reel, a plain video, a post still loading, and one a word block will catch. -->
+          <article id="a-reel" data-h="500"><div>
+            <div>
+              <span><div role="button"><canvas></canvas><span role="link"><img alt=""></span></div></span>
+              <div><div><a href="/dana_example/" role="link"><span>dana_example</span></a><div><a href="/p/CCC/"><time datetime="2026-10-02T10:00:00.000Z">1 d</time></a></div></div></div>
+              <div><div role="button"><svg aria-label="More Options"></svg></div></div>
+            </div>
+            <div><video></video><a href="/reels/audio/123/">Original audio</a><a href="/reels/CCC/">Watch</a></div>
+          </div></article>
+          <article id="a-video" data-h="500"><div>
+            <div>
+              <span><div role="button"><canvas></canvas><span role="link"><img alt=""></span></div></span>
+              <div><div><a href="/erin_example/" role="link"><span>erin_example</span></a><div><a href="/p/DDD/"><time datetime="2026-10-02T09:00:00.000Z">1 d</time></a></div></div></div>
+              <div><div role="button"><svg aria-label="More Options"></svg></div></div>
+            </div>
+            <div><video></video></div>
+          </div></article>
+          <article id="a-loading" data-h="500"><div>
+            <div><span><div role="button"><canvas></canvas></div></span><div></div><div><div role="button"><svg aria-label="More Options"></svg></div></div></div>
+            <div><span>Loading…</span></div>
+          </div></article>
+          <article id="a-kw" data-h="500"><div>
+            <div>
+              <span><div role="button"><canvas></canvas><span role="link"><img alt=""></span></div></span>
+              <div><div><a href="/frank_example/" role="link"><span>frank_example</span></a><div><a href="/p/EEE/"><time datetime="2026-10-02T08:00:00.000Z">1 d</time></a></div></div></div>
+              <div><div role="button"><svg aria-label="More Options"></svg></div></div>
+            </div>
+            <div><img alt=""></div>
+            <div><span>Buy CRYPTO now, mention @alice_example</span><a href="/alice_example/">@alice_example</a></div>
+          </div></article>
+        </div>
+      </div>
+
+      <div id="right-column" style="display:block;width:320px">
+        <div><a href="/me_example/">me_example</a></div>
+        <div><span>Suggested for you</span><a href="/explore/people/">See all</a>
+          <div><a href="/gina_example/">gina_example</a><div role="button">Follow</div></div></div>
+        <footer><a href="https://about.instagram.com/">About</a></footer>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
