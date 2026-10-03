@@ -721,7 +721,8 @@
     });
 
     site.presets.forEach(function (rule) {
-      if (!state.presets[rule.id] || (!rule.css && !rule.js)) return;
+      if (!state.presets[rule.id] || rule.behavior) return;
+      if (!rule.css && !rule.js && !(site.globals && site.globals[rule.id])) return;
       var seen = new Set(tagged[rule.id] || []);
       var broken = [];
       (rule.css || []).forEach(function (sel) {

@@ -132,6 +132,7 @@ function boot(html, url) {
     'src/common/sites.js',
     'src/sites/facebook.js',
     'src/sites/reddit.js',
+    'src/sites/x.js',
     'src/common/storage.js',
     'src/content/engine.js',
     'src/content/picker.js'
@@ -624,6 +625,80 @@ console.log('\nreddit.com as of October 2026 (test/fixtures/reddit.html)');
   out.BFX_ENGINE.apply(out.BFX_STORE.merge(null));
   await frame();
   ok('signed out, nothing counts as recommended', !out.document.getElementById('a-rec').hasAttribute('data-bfx-hidden-by'));
+}
+
+/* ------------------------------------------------------ x.com, October 2026 -- */
+console.log('\nx.com as of October 2026 (test/fixtures/x.html)');
+{
+  const html = fs.readFileSync(path.join(__dirname, 'fixtures/x.html'), 'utf8');
+  const w = boot(html, 'https://x.com/home');
+  const $$ = id => w.document.getElementById(id);
+  const by = id => $$(id) && $$(id).getAttribute('data-bfx-hidden-by');
+  const shown = id => !$$(id).closest('[data-bfx-hidden-by]');
+  const S = w.BFX_STORE;
+  const sheet = () => w.document.getElementById('bfx-style').textContent;
+  const xs = presets => S.merge({ sites: { x: { presets } } });
+  const ids = w.BFX_SITES.get('x').presets.map(r => r.id);
+  const only = list => { const p = {}; ids.forEach(k => { p[k] = list.includes(k); }); return xs(p); };
+
+  ok('x.com runs the X rules', w.BFX_ENGINE.site && w.BFX_ENGINE.site.id === 'x');
+  w.BFX_ENGINE.apply(S.merge(null));
+  await frame();
+  ok('an ad is hidden by its impression pixels', sheet().includes('[data-testid="cellInnerDiv"]:has([data-testid="top-impression-pixel"]){display:none') && by('cell-ad') === 'promoted', 'got ' + by('cell-ad'));
+  ok('an ad with no pixels is caught by its "Ad" label', by('cell-adlabel') === 'promoted', 'got ' + by('cell-adlabel'));
+  ok('who-to-follow rows go: heading, user cells and "Show more"',
+    by('cell-wtf-head') === 'whoToFollow' && by('cell-wtf-user') === 'whoToFollow' && by('cell-wtf-more') === 'whoToFollow');
+  ok('the right column\'s Premium card and suggestions go as whole blocks', by('blk-premium') === 'premiumUpsell' && by('blk-wtf') === 'whoToFollow');
+  ok('a promoted trend is hidden by its icon; ordinary trends stay', sheet().includes('[data-testid="trend"]:has(path[d^="M19.498 3h-15c-1.381"])') && !by('trend-plain'));
+  ok('ordinary posts, reposts, quotes and the search box stay',
+    ['cell-plain', 'cell-repost', 'cell-pinned', 'cell-video', 'cell-quote', 'cell-kw', 'blk-search', 'blk-trends', 'blk-news'].every(shown));
+  ok('the tab title count is stripped', w.document.title === 'Home / X', w.document.title);
+
+  w.BFX_ENGINE.apply(only(['reposts']));
+  await frame();
+  ok('reposts: the repost goes, a pinned post with another context line stays', by('cell-repost') === 'reposts' && shown('cell-pinned'));
+  w.BFX_ENGINE.apply(only(['media']));
+  await frame();
+  ok('media: the whole picture box goes, the text and buttons stay', by('media-box') === 'media' && shown('text-plain') && shown('bar-plain'));
+  w.BFX_ENGINE.apply(only(['composer']));
+  await frame();
+  ok('the post box goes as one block, the tabs and timeline stay', by('composer-block') === 'composer' && shown('timeline') && shown('tab-foryou'));
+  w.BFX_ENGINE.apply(only(['trends', 'news', 'sidebarSearch']));
+  await frame();
+  ok('trends, news and search go as their blocks, the rest of the column stays',
+    by('blk-trends') === 'trends' && by('blk-news') === 'news' && by('blk-search') === 'sidebarSearch' && shown('blk-wtf') && shown('blk-footer'));
+  let clicked = 0;
+  $$('tab-following').addEventListener('click', e => { e.preventDefault(); clicked++; });
+  w.BFX_ENGINE.apply(only(['following']));
+  await frame();
+  w.BFX_ENGINE.apply(only(['following', 'reposts']));
+  await frame();
+  ok('"Open Home on Following" clicks Following once per arrival, not on every change', clicked === 1, clicked + ' clicks');
+  const counts = (w.BFX_ENGINE.apply(S.merge(null)), await frame(), w.BFX_ENGINE.stats().presets);
+  ok('the popup counts each ad once, and who to follow as its 3 rows plus the sidebar block', counts.promoted.count === 2 && counts.whoToFollow.count === 4 && !('following' in counts), JSON.stringify(counts));
+
+  w.BFX_ENGINE.apply(S.merge({ keywords: { enabled: true, terms: ['crypto'] } }));
+  await frame();
+  ok('word blocks work on X posts', by('cell-kw') === 'keyword', 'got ' + by('cell-kw'));
+
+  const pick = w.BFX_PICKER.selectorFor($$('cell-plain'));
+  const hits = Array.from(w.document.querySelectorAll(pick.selector)).map(e => e.id);
+  ok('picking a post means posts from that account, not quotes of it → ' + pick.selector,
+    pick.author === '@alice' && hits.join() === 'cell-plain', hits.join());
+  const region = w.BFX_PICKER.selectorFor(w.document.querySelector('#blk-trends section'));
+  ok('picking the trends list never yields a rule that also hides the timeline: ' + region.selector,
+    !Array.prototype.includes.call(w.document.querySelectorAll(region.selector), $$('timeline')));
+
+  const opened = boot(html, 'https://x.com/alice/status/111');
+  opened.BFX_ENGINE.apply(opened.BFX_STORE.merge({ sites: { x: { presets: { verifiedReplies: true } } } }));
+  await frame();
+  const obi = id => opened.document.getElementById(id).getAttribute('data-bfx-hidden-by');
+  ok('under an opened post, a reply from a verified account goes; the post itself stays',
+    obi('cell-video') === 'verifiedReplies' && !obi('cell-plain'), obi('cell-video') + ' / ' + obi('cell-plain'));
+  const lists = boot(html, 'https://x.com/alice/following');
+  lists.BFX_ENGINE.apply(lists.BFX_STORE.merge(null));
+  await frame();
+  ok('user cells on a following list are the content, not suggestions', !lists.document.getElementById('cell-wtf-user').hasAttribute('data-bfx-hidden-by'));
 }
 
 report();
