@@ -1,23 +1,38 @@
-# BlockFB
+# BlockDistractXrn
 
-A Chrome/Edge extension that makes Facebook's interface opt-in. Flip off the
-parts you don't want — Stories, Reels, ads, the sidebars, the Like counts, the
-red badges — or turn on the picker and click anything else to make it go away.
+A Chrome/Edge extension that makes the distracting parts of social sites
+opt-in. Flip off what you don't want — ads, suggested posts, Reels, sidebars,
+counts, red badges — or turn on the picker and click anything else to make it
+go away. (It started life as BlockFB, for Facebook only.)
 
 Nothing leaves your browser: no network requests, no analytics, no accounts.
+
+## Sites
+
+| site | status |
+| --- | --- |
+| Facebook | done — checked against the live site, October 2026 |
+| Reddit, X, LinkedIn, Instagram, TikTok, Twitch | being added, one at a time |
+
+Each site has its own switches and picked rules, and can be switched off on
+its own from the popup. The pause switch, the word list and the "show" bars
+are shared by every site.
 
 ## Install (unpacked)
 
 1. `chrome://extensions` → turn on **Developer mode**
 2. **Load unpacked** → pick this folder
-3. Open Facebook. Already-open tabs need one reload, because the content script
-   is injected at page load.
+3. Open a supported site. Already-open tabs need one reload, because the
+   content script is injected at page load.
 
-`npm run zip` packs a `blockfb.zip` for the Web Store or for sharing.
+`npm run zip` packs a `blockdistractxrn.zip` for the Web Store or for sharing.
 
 ## Using it
 
-**Blocks tab** — 34 ready-made switches grouped by where they live (Ads, Feed,
+The popup opens on the site of the tab you are on (a green dot marks it);
+the row of site buttons switches between sites' settings.
+
+**Blocks tab** — on Facebook, 34 ready-made switches grouped by where they live (Ads, Feed,
 Inside posts, Sidebars, Top bar, Chat, Effects). Seven are on by default: the
 three ad rules, suggested posts, "people you may know", Reels, and the red
 unread badges. Changes apply instantly in every open Facebook tab, no reload.
@@ -69,7 +84,7 @@ and renumbers the feed as you scroll.
 `Alt+Shift+B` pauses and resumes every rule at once; the toolbar icon shows
 **off** while paused.
 
-## How it hides things
+## How it hides things (Facebook)
 
 Facebook's class names are generated per build (`x1n2onr6`, `xdt5ytf`), so any
 rule written against them dies within days. Every rule here keys off attributes
@@ -101,7 +116,7 @@ which used to let hidden ads quietly reappear. Anything that loses its marker
 anyway is re-hidden on the next pass, and the stylesheet is put back if the
 page ever drops it.
 
-## Ads
+## Ads (Facebook)
 
 Four rules, and they work differently from each other on purpose — any single
 signal can vanish in a Facebook deploy.
@@ -141,7 +156,7 @@ skipped — the player still has to run them — and **network-level blocking is
 useless here**, because Facebook serves ads from the same first-party domains
 and CDNs as everything else. Blocking those breaks the site.
 
-## Suggestions
+## Suggestions (Facebook)
 
 Facebook dropped the "Suggested for you" line too. A post from a page, person
 or group you don't follow now has a **Follow** (or **Join**) button inside its
@@ -151,7 +166,7 @@ posts: no author title, and the same button ("Add friend", "Join group") on
 every card. The people-you-may-know rule counts that repetition, also without
 reading the language.
 
-## Languages
+## Languages (Facebook)
 
 Phrases are only a fallback now (paid partnerships and friend activity rely
 on them). English comes from Facebook itself; Vietnamese, Spanish, Portuguese,
@@ -193,9 +208,10 @@ misfire on what someone wrote. Corrections go in `src/common/presets.js`.
 
 ```
 manifest.json
-src/common/presets.js       the 31 built-in rules
+src/common/sites.js         the site list, and the registry rule packs join
+src/sites/facebook.js       Facebook's switches and detection (one file per site)
 src/common/storage.js       one key in chrome.storage.local, shared everywhere
-src/content/engine.js       stylesheet builder + heuristics + observer
+src/content/engine.js       stylesheet builder + observer, driven by the site's pack
 src/content/picker.js       overlay, and the selector generator
 src/content/main.js         bootstrap, SPA route changes, messaging
 src/background/            keyboard shortcuts and the toolbar badge

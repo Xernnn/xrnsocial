@@ -1,16 +1,23 @@
 {
   "manifest_version": 3,
-  "name": "BlockFB — Facebook Element Blocker",
-  "version": "1.0.0",
-  "description": "Toggle off any part of Facebook: stories, reels, sponsored posts, sidebars, chat — or point and click to hide anything else.",
+  "name": "BlockDistractXrn",
+  "version": "2.0.0",
+  "description": "Switch off the distracting parts of Facebook, Reddit, X, LinkedIn, Instagram, TikTok and Twitch: ads, suggestions, reels, sidebars — or point and click to hide anything else.",
   "permissions": ["storage", "activeTab"],
   "host_permissions": [
     "*://*.facebook.com/*",
-    "*://*.messenger.com/*"
+    "*://*.messenger.com/*",
+    "*://*.reddit.com/*",
+    "*://*.x.com/*",
+    "*://*.twitter.com/*",
+    "*://*.linkedin.com/*",
+    "*://*.instagram.com/*",
+    "*://*.tiktok.com/*",
+    "*://*.twitch.tv/*"
   ],
   "action": {
     "default_popup": "src/popup/popup.html",
-    "default_title": "BlockFB",
+    "default_title": "BlockDistractXrn",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -33,9 +40,20 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://*.facebook.com/*", "*://*.messenger.com/*"],
+      "matches": [
+        "*://*.facebook.com/*",
+        "*://*.messenger.com/*",
+        "*://*.reddit.com/*",
+        "*://*.x.com/*",
+        "*://*.twitter.com/*",
+        "*://*.linkedin.com/*",
+        "*://*.instagram.com/*",
+        "*://*.tiktok.com/*",
+        "*://*.twitch.tv/*"
+      ],
       "js": [
-        "src/common/presets.js",
+        "src/common/sites.js",
+        "src/sites/facebook.js",
         "src/common/storage.js",
         "src/content/engine.js",
         "src/content/picker.js",
@@ -49,11 +67,11 @@
   "commands": {
     "toggle-picker": {
       "suggested_key": { "default": "Alt+Shift+H" },
-      "description": "Pick an element on Facebook to hide"
+      "description": "Pick an element on the page to hide"
     },
     "toggle-master": {
       "suggested_key": { "default": "Alt+Shift+B" },
-      "description": "Turn all BlockFB rules on/off"
+      "description": "Pause or resume every BlockDistractXrn rule"
     }
   }
 }

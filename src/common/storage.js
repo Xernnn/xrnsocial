@@ -1,37 +1,90 @@
 /* Single-key state in chrome.storage.local, shared by the content script,
- * the popup and the service worker. One key keeps change notifications cheap
- * and makes read-modify-write races obvious instead of subtle. */
+ * the popup, the options page and the service worker. One key keeps change
+ * notifications cheap and makes read-modify-write races obvious instead of
+ * subtle.
+ *
+ *   { enabled, placeholders, keywords: { enabled, terms },
+ *     sites: { <site id>: { enabled, presets: { <preset id>: bool }, custom: [rule] } } }
+ *
+ * The pause switch, the "show" bars and the word list are shared by every
+ * site; switches and picked rules belong to one site. Settings saved before
+ * there was more than one site were Facebook's and are moved there.
+ */
 (function (root) {
   'use strict';
 
   var KEY = 'bfx';
+  var APP = 'BlockDistractXrn';
 
   var DEFAULTS = {
     enabled: true,
-    presets: {
-      sponsored: true,
-      adSweep: true,
-      rightAds: true,
-      suggested: true,
-      pymk: true,
-      reels: true,
-      badges: true
-    },
-    custom: [],
+    placeholders: false,
     keywords: { enabled: false, terms: [] },
-    placeholders: false
+    sites: {}
   };
 
   function clone(v) {
     return JSON.parse(JSON.stringify(v));
   }
 
+  function siteIds() {
+    return root.BFX_SITES ? root.BFX_SITES.list.map(function (s) { return s.id; }) : [];
+  }
+
+  /* One site's settings over its defaults. Defaults come from the site's
+   * rule pack, so where a pack is not loaded (the service worker) stored
+   * switches are kept as they are and nothing is added. */
+  function mergeSite(id, stored) {
+    stored = stored || {};
+    var defaults = root.BFX_SITES ? root.BFX_SITES.defaultsFor(id) : {};
+    return {
+      enabled: stored.enabled !== false,
+      presets: Object.assign(defaults, stored.presets || {}),
+      custom: Array.isArray(stored.custom) ? stored.custom : []
+    };
+  }
+
   function merge(stored) {
-    var s = Object.assign(clone(DEFAULTS), stored || {});
-    s.presets = Object.assign(clone(DEFAULTS.presets), (stored && stored.presets) || {});
-    s.keywords = Object.assign(clone(DEFAULTS.keywords), (stored && stored.keywords) || {});
-    if (!Array.isArray(s.custom)) s.custom = [];
+    stored = stored || {};
+    var s = clone(DEFAULTS);
+    if (typeof stored.enabled === 'boolean') s.enabled = stored.enabled;
+    if (typeof stored.placeholders === 'boolean') s.placeholders = stored.placeholders;
+    s.keywords = Object.assign(clone(DEFAULTS.keywords), stored.keywords || {});
+
+    var sites = Object.assign({}, stored.sites || {});
+    /* Saved before there were other sites: these switches are Facebook's. */
+    if (!stored.sites && (stored.presets || stored.custom)) {
+      sites.facebook = { enabled: true, presets: stored.presets || {}, custom: stored.custom || [] };
+    }
+    var ids = siteIds();
+    Object.keys(sites).forEach(function (id) {
+      if (ids.indexOf(id) === -1) ids.push(id);
+    });
+    ids.forEach(function (id) {
+      s.sites[id] = mergeSite(id, sites[id]);
+    });
     return s;
+  }
+
+  /* A site's settings inside a full state, created if missing, for writers. */
+  function site(state, id) {
+    if (!state.sites[id]) state.sites[id] = mergeSite(id);
+    return state.sites[id];
+  }
+
+  /* What a page on one site runs on: the shared settings with that site's
+   * switches and picked rules. Paused when everything is paused or the site
+   * is switched off. */
+  function view(state, id) {
+    var own = state.sites[id] || mergeSite(id);
+    return {
+      site: id,
+      enabled: state.enabled && own.enabled,
+      presets: own.presets,
+      custom: own.custom,
+      keywords: state.keywords,
+      placeholders: state.placeholders
+    };
   }
 
   function get() {
@@ -90,64 +143,86 @@
 
   function toBackup(state) {
     return {
-      app: 'BlockFB',
-      version: 1,
+      app: APP,
+      version: 2,
       exportedAt: new Date().toISOString(),
       settings: state
     };
   }
 
-  /* Rebuild settings from an exported file field by field, so a hand-edited
-   * or foreign file can only ever produce a well-formed state. Throws with a
-   * message fit to show the person. */
-  function fromBackup(data) {
-    var s = data && data.app === 'BlockFB' ? data.settings : data;
-    if (!s || typeof s !== 'object' || Array.isArray(s) ||
-        !('presets' in s || 'custom' in s || 'keywords' in s)) {
-      throw new Error('This file does not contain BlockFB settings.');
-    }
-    var out = merge(null);
-    if (typeof s.enabled === 'boolean') out.enabled = s.enabled;
-    if (typeof s.placeholders === 'boolean') out.placeholders = s.placeholders;
-    if (s.presets && typeof s.presets === 'object') {
-      Object.keys(s.presets).forEach(function (id) {
-        if (typeof s.presets[id] === 'boolean') out.presets[id] = s.presets[id];
+  function cleanRules(list) {
+    return (Array.isArray(list) ? list : []).filter(function (r) {
+      return r && validSelector(r.selector);
+    }).map(function (r) {
+      return {
+        id: typeof r.id === 'string' && r.id ? r.id : newId(),
+        selector: r.selector,
+        label: typeof r.label === 'string' ? r.label : '',
+        scope: r.scope === 'path' ? 'path' : 'all',
+        path: typeof r.path === 'string' ? r.path : '/',
+        enabled: r.enabled !== false,
+        createdAt: Number(r.createdAt) || Date.now()
+      };
+    });
+  }
+
+  function cleanSwitches(map) {
+    var out = {};
+    if (map && typeof map === 'object') {
+      Object.keys(map).forEach(function (id) {
+        if (typeof map[id] === 'boolean') out[id] = map[id];
       });
-    }
-    if (Array.isArray(s.custom)) {
-      out.custom = s.custom.filter(function (r) {
-        return r && validSelector(r.selector);
-      }).map(function (r) {
-        return {
-          id: typeof r.id === 'string' && r.id ? r.id : newId(),
-          selector: r.selector,
-          label: typeof r.label === 'string' ? r.label : '',
-          scope: r.scope === 'path' ? 'path' : 'all',
-          path: typeof r.path === 'string' ? r.path : '/',
-          enabled: r.enabled !== false,
-          createdAt: Number(r.createdAt) || Date.now()
-        };
-      });
-    }
-    if (s.keywords && typeof s.keywords === 'object') {
-      out.keywords.enabled = s.keywords.enabled === true;
-      if (Array.isArray(s.keywords.terms)) {
-        out.keywords.terms = s.keywords.terms
-          .filter(function (t) { return typeof t === 'string' && t.trim(); })
-          .map(function (t) { return t.trim(); });
-      }
     }
     return out;
   }
 
+  /* Rebuild settings from an exported file field by field, so a hand-edited
+   * or foreign file can only ever produce a well-formed state. Files from
+   * before the rename (app "BlockFB", one site) restore into Facebook.
+   * Throws with a message fit to show the person. */
+  function fromBackup(data) {
+    var s = data && (data.app === APP || data.app === 'BlockFB') ? data.settings : data;
+    if (!s || typeof s !== 'object' || Array.isArray(s) ||
+        !('sites' in s || 'presets' in s || 'custom' in s || 'keywords' in s)) {
+      throw new Error('This file does not contain ' + APP + ' settings.');
+    }
+    var out = {};
+    if (typeof s.enabled === 'boolean') out.enabled = s.enabled;
+    if (typeof s.placeholders === 'boolean') out.placeholders = s.placeholders;
+    if (s.keywords && typeof s.keywords === 'object') {
+      out.keywords = {
+        enabled: s.keywords.enabled === true,
+        terms: (Array.isArray(s.keywords.terms) ? s.keywords.terms : [])
+          .filter(function (t) { return typeof t === 'string' && t.trim(); })
+          .map(function (t) { return t.trim(); })
+      };
+    }
+    var sites = s.sites && typeof s.sites === 'object' ? s.sites
+      : { facebook: { presets: s.presets, custom: s.custom } };
+    var known = siteIds();
+    out.sites = {};
+    Object.keys(sites).forEach(function (id) {
+      if (known.indexOf(id) === -1 || !sites[id] || typeof sites[id] !== 'object') return;
+      out.sites[id] = {
+        enabled: sites[id].enabled !== false,
+        presets: cleanSwitches(sites[id].presets),
+        custom: cleanRules(sites[id].custom)
+      };
+    });
+    return merge(out);
+  }
+
   root.BFX_STORE = {
     KEY: KEY,
+    APP: APP,
     DEFAULTS: DEFAULTS,
     get: get,
     set: set,
     update: update,
     onChange: onChange,
     merge: merge,
+    site: site,
+    view: view,
     newId: newId,
     validSelector: validSelector,
     toBackup: toBackup,

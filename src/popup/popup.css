@@ -70,6 +70,32 @@ body {
 .pick b { display: block; font-size: 13px; }
 .pick em { font-style: normal; color: var(--dim); font-size: 11.5px; }
 
+/* --------------------------------------------------------------- sites -- */
+.sites { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px 10px; }
+.site {
+  position: relative;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: none;
+  color: var(--dim);
+  font: 600 11.5px/1.4 inherit;
+  cursor: pointer;
+}
+.site:hover { border-color: var(--accent); }
+.site.is-on { border-color: var(--accent); background: var(--accent); color: #fff; }
+/* The site of the tab the popup was opened over. */
+.site.is-here::after {
+  content: "";
+  position: absolute;
+  top: -2px; right: -2px;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #31a24c;
+  border: 2px solid var(--bg);
+}
+.site.is-off { text-decoration: line-through; }
+
 /* ---------------------------------------------------------------- tabs -- */
 .tabs { display: flex; gap: 2px; padding: 0 10px; border-bottom: 1px solid var(--line); }
 .tab {

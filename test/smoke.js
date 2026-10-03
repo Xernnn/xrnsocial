@@ -101,9 +101,9 @@ const PAGE = `<!doctype html><html><head><title>(3) Facebook</title></head><body
 </body></html>`;
 
 /* A window running the real content scripts (except main.js) over `html`. */
-function boot(html) {
+function boot(html, url) {
   const { window } = new JSDOM(html, {
-    url: 'https://www.facebook.com/',
+    url: url || 'https://www.facebook.com/',
     pretendToBeVisual: true,
     runScripts: 'outside-only'
   });
@@ -129,7 +129,8 @@ function boot(html) {
   };
 
   for (const file of [
-    'src/common/presets.js',
+    'src/common/sites.js',
+    'src/sites/facebook.js',
     'src/common/storage.js',
     'src/content/engine.js',
     'src/content/picker.js'
@@ -142,7 +143,8 @@ function boot(html) {
 /* The older markup (role="feed", data-pagelet), which Facebook no longer
  * ships but the rules still accept. Today's markup is tested further down. */
 const window = boot(PAGE);
-const { BFX_PRESETS, BFX_STORE, BFX_ENGINE, BFX_PICKER } = window;
+const { BFX_STORE, BFX_ENGINE, BFX_PICKER, BFX_SITES } = window;
+const BFX_PRESETS = BFX_SITES.get('facebook').presets;
 
 /* --------------------------------------------------------- selectors -- */
 console.log('\nselector syntax (jsdom, :has() support is partial)');
@@ -371,14 +373,15 @@ const restored = BFX_STORE.fromBackup(JSON.parse(JSON.stringify(BFX_STORE.toBack
 ok('a backup restores to the same settings', JSON.stringify(restored) === JSON.stringify(mine));
 let threw = null;
 try { BFX_STORE.fromBackup({ hello: 'world' }); } catch (e) { threw = e.message; }
-ok('a file that is not a backup is refused', /does not contain BlockFB settings/.test(threw || ''), threw);
+ok('a file that is not a backup is refused', /does not contain BlockDistractXrn settings/.test(threw || ''), threw);
 const cleaned = BFX_STORE.fromBackup({
   presets: { stories: 'yes', feed: true },
   custom: [{ selector: 'div}body{color:red' }, { selector: 'a[href^="/x"]', scope: 'weird' }, null],
   keywords: { enabled: 1, terms: ['ok', 7, ' '] }
 });
-ok('non-boolean switches are ignored', cleaned.presets.stories === undefined && cleaned.presets.feed === true);
-ok('picked rules with invalid selectors are dropped', cleaned.custom.length === 1 && cleaned.custom[0].scope === 'all');
+const cleanedFb = cleaned.sites.facebook;
+ok('non-boolean switches are ignored', cleanedFb.presets.stories === undefined && cleanedFb.presets.feed === true);
+ok('picked rules with invalid selectors are dropped', cleanedFb.custom.length === 1 && cleanedFb.custom[0].scope === 'all');
 ok('words are cleaned', JSON.stringify(cleaned.keywords) === JSON.stringify({ enabled: false, terms: ['ok'] }));
 
 /* ------------------------------------------------------------ picker -- */
@@ -400,6 +403,38 @@ check('sidebar advert', $('side-ad'));
 const feedPost = $('u-ok');
 const built = BFX_PICKER.selectorFor(feedPost);
 ok('feed post gets a selector anchored on its pagelet', /FeedUnit/.test(built.selector), built.selector);
+
+/* ------------------------------------------------------------ sites -- */
+console.log('\nsites and settings');
+ok('hostnames map to their site', BFX_SITES.forHost('www.facebook.com') === 'facebook' &&
+  BFX_SITES.forHost('old.reddit.com') === 'reddit' && BFX_SITES.forHost('x.com') === 'x' &&
+  BFX_SITES.forHost('mobile.twitter.com') === 'x' && BFX_SITES.forHost('www.twitch.tv') === 'twitch');
+ok('lookalike hosts do not', BFX_SITES.forHost('notfacebook.com') === null && BFX_SITES.forHost('example.com') === null &&
+  BFX_SITES.forUrl('chrome://extensions/') === null);
+const old = BFX_STORE.merge({ enabled: true, presets: { stories: true, sponsored: false }, custom: [{ id: 'o1', selector: '#x', scope: 'all' }] });
+ok('settings from before other sites move to Facebook',
+  old.sites.facebook.presets.stories === true && old.sites.facebook.presets.sponsored === false &&
+  old.sites.facebook.custom.length === 1 && !('presets' in old) && !('custom' in old));
+ok('Facebook defaults still apply underneath', old.sites.facebook.presets.reels === true);
+ok('every site has a slot, even before its rules exist', BFX_SITES.list.every(x => old.sites[x.id]));
+const offHere = BFX_STORE.merge(null);
+offHere.sites.facebook.enabled = false;
+ok('a site switched off is paused, the rest are not',
+  BFX_STORE.view(offHere, 'facebook').enabled === false && BFX_STORE.view(offHere, 'reddit').enabled === true);
+BFX_ENGINE.apply(offHere);
+ok('with Facebook switched off its pages get no rules',
+  window.document.getElementById('bfx-style').textContent.split('\n').length === 1);
+const legacy = BFX_STORE.fromBackup({ app: 'BlockFB', version: 1, settings: { presets: { stories: true }, custom: [], keywords: { enabled: true, terms: ['x'] } } });
+ok('an old BlockFB backup restores into Facebook', legacy.sites.facebook.presets.stories === true && legacy.keywords.terms[0] === 'x');
+const v2 = BFX_STORE.fromBackup(BFX_STORE.toBackup(Object.assign(BFX_STORE.merge(null), { sites: { facebook: { enabled: false, presets: { feed: true }, custom: [] }, nowhere: { presets: { a: true } } } })));
+ok('a new backup restores per site, and drops sites that do not exist', v2.sites.facebook.enabled === false &&
+  v2.sites.facebook.presets.feed === true && !('nowhere' in v2.sites));
+{
+  const other = boot('<!doctype html><html><head></head><body><div aria-posinset="1">hello crypto</div></body></html>', 'https://example.com/');
+  other.BFX_ENGINE.apply(other.BFX_STORE.merge({ keywords: { enabled: true, terms: ['crypto'] } }));
+  ok('a site without rules is left completely alone', other.BFX_ENGINE.site === null &&
+    !other.document.getElementById('bfx-style') && !other.document.querySelector('[data-bfx-hidden-by]'));
+}
 
 /* ------------------------------------------ facebook.com, October 2026 -- */
 console.log('\nfacebook.com as of October 2026 (test/fixtures/feed.html)');
@@ -451,8 +486,8 @@ console.log('\nfacebook.com as of October 2026 (test/fixtures/feed.html)');
   await frame();
   ok('an empty shell is judged once Facebook fills it', by('u-shell') === 'suggested', 'got ' + by('u-shell'));
 
-  const all = S.merge({ presets: Object.fromEntries(w.BFX_PRESETS.map(r => [r.id, true])) });
-  all.presets.feed = false;
+  const all = S.merge({ presets: Object.fromEntries(w.BFX_SITES.get('facebook').presets.map(r => [r.id, true])) });
+  all.sites.facebook.presets.feed = false;
   w.BFX_ENGINE.apply(all);
   await frame();
   ok('the Like / Comment row is found by its button markers', by('bar') === 'postActions', 'got ' + by('bar'));

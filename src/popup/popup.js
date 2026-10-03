@@ -1,16 +1,20 @@
 'use strict';
 
 var store = window.BFX_STORE;
-var PRESETS = window.BFX_PRESETS;
-var GROUPS = window.BFX_GROUPS;
+var SITES = window.BFX_SITES;
 
 var state = null;
-var tab = null;           // active Facebook tab, if any
+var tab = null;           // active tab, when it is on a supported site
+var tabSite = null;       // that tab's site id
+var siteId = null;        // the site whose settings are shown
 var stats = null;         // what each rule matches on that tab
 var el = {
   master: document.getElementById('master'),
   status: document.getElementById('status'),
   pick: document.getElementById('pick'),
+  sites: document.getElementById('sites'),
+  siteLabel: document.getElementById('siteLabel'),
+  siteEnabled: document.getElementById('siteEnabled'),
   presets: document.getElementById('presets'),
   custom: document.getElementById('custom'),
   customCount: document.getElementById('customCount'),
@@ -24,6 +28,14 @@ var el = {
   hidden: document.getElementById('hidden')
 };
 
+function pack() {
+  return SITES.get(siteId);
+}
+
+function own() {
+  return state.sites[siteId] || { enabled: true, presets: {}, custom: [] };
+}
+
 /* Every write is a read-modify-write against storage, never a save of this
  * popup's copy: the keyboard shortcut or another window may have changed
  * settings since the popup opened. */
@@ -35,10 +47,16 @@ function mutate(fn) {
   });
 }
 
-function mutateRule(id, fn) {
-  return mutate(function (s) {
-    s.custom.forEach(function (r) {
-      if (r.id === id) fn(r);
+/* A write to the shown site's settings. */
+function mutateSite(fn) {
+  var id = siteId;
+  return mutate(function (s) { fn(store.site(s, id)); });
+}
+
+function mutateRule(ruleId, fn) {
+  return mutateSite(function (mine) {
+    mine.custom.forEach(function (r) {
+      if (r.id === ruleId) fn(r);
     });
   });
 }
@@ -78,9 +96,9 @@ function plural(n, word) {
 
 /* ------------------------------------------------------------- health -- */
 
-/* How much a rule matched on the open Facebook tab. "None here" is often
- * just a page without that thing on it, so it is worded as a hint, not an
- * alarm; only a selector Chrome rejects is called broken. */
+/* How much a rule matched on the open tab. "None here" is often just a page
+ * without that thing on it, so it is worded as a hint, not an alarm; only a
+ * selector Chrome rejects is called broken. */
 function healthChip(stat) {
   if (!stat) return null;
   var broken = stat.broken || [];
@@ -94,7 +112,7 @@ function healthChip(stat) {
   } else if (!stat.count) {
     chip = node('span', 'chip zero', 'none here');
     chip.title = 'Nothing on this page matched. That is fine if there is nothing to hide here. ' +
-      'If you can still see it, Facebook probably changed: hide it with the picker to make a rule that works.';
+      'If you can still see it, the site probably changed: hide it with the picker to make a rule that works.';
   } else {
     chip = node('span', 'chip' + (broken.length ? ' warn' : ''), stat.count + ' here');
     chip.title = plural(stat.count, 'element') + ' matched on this page.' +
@@ -103,19 +121,41 @@ function healthChip(stat) {
   return chip;
 }
 
+/* Counts only mean something for the site of the tab they came from. */
 function liveStat(kind, id) {
-  if (!stats || !state.enabled) return null;
+  if (!stats || stats.site !== siteId || !state.enabled || !own().enabled) return null;
   return stats[kind] && stats[kind][id];
+}
+
+/* --------------------------------------------------------------- sites -- */
+
+function renderSites() {
+  el.sites.textContent = '';
+  SITES.available().forEach(function (p) {
+    var b = node('button', 'site', p.name);
+    b.classList.toggle('is-on', p.id === siteId);
+    b.classList.toggle('is-here', p.id === tabSite);
+    b.classList.toggle('is-off', state.sites[p.id] && state.sites[p.id].enabled === false);
+    if (p.id === tabSite) b.title = 'The site of this tab';
+    b.addEventListener('click', function () {
+      siteId = p.id;
+      el.filter.value = '';
+      render();
+    });
+    el.sites.appendChild(b);
+  });
 }
 
 /* ------------------------------------------------------------ presets -- */
 
 function renderPresets() {
   var query = el.filter.value.trim().toLowerCase();
+  var p = pack();
+  var mine = own();
   el.presets.textContent = '';
 
-  GROUPS.forEach(function (group) {
-    var rules = PRESETS.filter(function (r) {
+  p.groups.forEach(function (group) {
+    var rules = p.presets.filter(function (r) {
       if (r.group !== group) return false;
       if (!query) return true;
       return (r.label + ' ' + (r.desc || '') + ' ' + r.group).toLowerCase().indexOf(query) !== -1;
@@ -127,13 +167,13 @@ function renderPresets() {
       var row = node('div', 'row');
       var text = node('div', 'row-text');
       var title = node('b', null, rule.label);
-      var chip = state.presets[rule.id] && healthChip(liveStat('presets', rule.id));
+      var chip = mine.presets[rule.id] && healthChip(liveStat('presets', rule.id));
       if (chip) title.appendChild(chip);
       text.appendChild(title);
       if (rule.desc) text.appendChild(node('em', null, rule.desc));
       row.appendChild(text);
-      var sw = makeSwitch(state.presets[rule.id], function (on) {
-        mutate(function (s) { s.presets[rule.id] = on; });
+      var sw = makeSwitch(mine.presets[rule.id], function (on) {
+        mutateSite(function (m) { m.presets[rule.id] = on; });
       });
       row.appendChild(sw);
       clickTogglesSwitch(row, sw);
@@ -151,19 +191,20 @@ function renderPresets() {
 /* ------------------------------------------------------------- custom -- */
 
 function renderCustom() {
+  var mine = own();
   el.custom.textContent = '';
-  el.customCount.textContent = String(state.custom.length);
+  el.customCount.textContent = String(mine.custom.length);
 
-  if (!state.custom.length) {
+  if (!mine.custom.length) {
     var empty = node('div', 'empty');
-    empty.appendChild(node('b', null, 'Nothing picked yet'));
+    empty.appendChild(node('b', null, 'Nothing picked on ' + pack().name + ' yet'));
     empty.appendChild(node('span', null,
-      'Open Facebook, hit the button above, then click whatever is bothering you.'));
+      'Open ' + pack().name + ', hit the button above, then click whatever is bothering you.'));
     el.custom.appendChild(empty);
     return;
   }
 
-  state.custom.slice().reverse().forEach(function (rule) {
+  mine.custom.slice().reverse().forEach(function (rule) {
     var row = node('div', 'custom-row');
 
     var text = node('div', 'row-text');
@@ -194,8 +235,8 @@ function renderCustom() {
     var del = node('button', 'del', '×');
     del.title = 'Delete this rule';
     del.addEventListener('click', function () {
-      mutate(function (s) {
-        s.custom = s.custom.filter(function (r) { return r.id !== rule.id; });
+      mutateSite(function (m) {
+        m.custom = m.custom.filter(function (r) { return r.id !== rule.id; });
       });
     });
     row.appendChild(del);
@@ -208,30 +249,35 @@ function renderCustom() {
 
 /* Stored settings can hold ids of presets that no longer exist. */
 function countOn() {
-  var presets = PRESETS.filter(function (r) { return state.presets[r.id]; }).length;
-  var custom = state.custom.filter(function (r) { return r.enabled !== false; }).length;
+  var mine = own();
+  var presets = pack().presets.filter(function (r) { return mine.presets[r.id]; }).length;
+  var custom = mine.custom.filter(function (r) { return r.enabled !== false; }).length;
   return presets + custom;
 }
 
 function render() {
+  var mine = own();
   el.master.checked = state.enabled;
-  el.status.textContent = state.enabled
-    ? plural(countOn(), 'rule') + ' active'
-    : 'paused — nothing is hidden';
+  el.status.textContent = !state.enabled ? 'paused everywhere — nothing is hidden'
+    : !mine.enabled ? pack().name + ': off'
+    : pack().name + ': ' + plural(countOn(), 'rule') + ' active';
+  el.siteLabel.textContent = 'Use on ' + pack().name;
+  el.siteEnabled.checked = mine.enabled;
   el.kwEnabled.checked = state.keywords.enabled;
   if (document.activeElement !== el.kwTerms) {
     el.kwTerms.value = (state.keywords.terms || []).join('\n');
   }
-  el.kwCount.textContent = stats && state.enabled && state.keywords.enabled
+  el.kwCount.textContent = stats && stats.site === tabSite && state.enabled && state.keywords.enabled
     ? plural(stats.keyword, 'post') + ' hidden on this page.'
     : '';
   el.placeholders.checked = !!state.placeholders;
+  renderSites();
   renderPresets();
   renderCustom();
 }
 
-/* Ask the Facebook tab what each rule matched. After a change, wait for the
- * tab to receive it and rescan before asking. */
+/* Ask the tab what each rule matched. After a change, wait for the tab to
+ * receive it and rescan before asking. */
 function refreshStats(delay) {
   if (!tab) return;
   setTimeout(function () {
@@ -263,6 +309,11 @@ el.master.addEventListener('change', function () {
   mutate(function (s) { s.enabled = on; });
 });
 
+el.siteEnabled.addEventListener('change', function () {
+  var on = el.siteEnabled.checked;
+  mutateSite(function (m) { m.enabled = on; });
+});
+
 el.filter.addEventListener('input', renderPresets);
 
 el.kwEnabled.addEventListener('change', function () {
@@ -288,7 +339,7 @@ el.placeholders.addEventListener('change', function () {
 
 el.pick.addEventListener('click', function () {
   if (!tab) {
-    el.status.textContent = 'open a Facebook tab first';
+    el.status.textContent = 'open a supported site first';
     return;
   }
   chrome.tabs.sendMessage(tab.id, { type: 'bfx:pick' }, function () {
@@ -304,29 +355,43 @@ el.backup.addEventListener('click', function () {
 });
 
 el.reset.addEventListener('click', function () {
-  if (!confirm('Delete every rule and go back to the defaults?')) return;
+  if (!confirm('Delete every rule on every site and go back to the defaults?')) return;
   mutate(function () { return store.merge(null); });
 });
 
 /* ---------------------------------------------------------------- init -- */
 
+/* The settings and the active tab both decide what to show first: the site
+ * of the tab when it has rules, else the first site that does. */
+var ready = { state: false, tab: false };
+
+function start() {
+  if (!ready.state || !ready.tab) return;
+  siteId = tabSite && SITES.get(tabSite) ? tabSite : SITES.available()[0].id;
+  render();
+  refreshStats(0);
+}
+
 store.get().then(function (s) {
   state = s;
-  render();
+  ready.state = true;
+  start();
 });
 
 /* The shortcut, the picker or another window changed something. */
 store.onChange(function (s) {
   state = s;
-  render();
+  if (siteId) render();
 });
 
 chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
   var t = tabs && tabs[0];
-  if (!t || !t.url || !/^https?:\/\/([a-z0-9-]+\.)?(facebook|messenger)\.com\//.test(t.url)) {
-    el.pick.querySelector('em').textContent = 'Open a Facebook tab to use this';
-    return;
+  tabSite = t && t.url ? SITES.forUrl(t.url) : null;
+  if (tabSite && SITES.get(tabSite)) {
+    tab = t;
+  } else {
+    el.pick.querySelector('em').textContent = 'Open a supported site to use this';
   }
-  tab = t;
-  refreshStats(0);
+  ready.tab = true;
+  start();
 });

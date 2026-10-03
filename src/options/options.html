@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>BlockFB — Back up &amp; restore</title>
+  <title>BlockDistractXrn — Back up &amp; restore</title>
   <link rel="stylesheet" href="options.css" />
 </head>
 <body>
@@ -23,7 +23,7 @@
 
     <section class="card">
       <h2>Restore</h2>
-      <p class="dim">Replaces everything you have now with the contents of a backup file. Open Facebook tabs pick it up straight away.</p>
+      <p class="dim">Replaces everything you have now, on every site, with the contents of a backup file. Open tabs pick it up straight away.</p>
       <input type="file" id="file" accept=".json,application/json" />
       <p id="preview" class="dim"></p>
       <button id="restore" class="primary" disabled>Replace my settings with this backup</button>
@@ -31,7 +31,8 @@
     </section>
   </main>
 
-  <script src="../common/presets.js"></script>
+  <script src="../common/sites.js"></script>
+  <script src="../sites/facebook.js"></script>
   <script src="../common/storage.js"></script>
   <script src="options.js"></script>
 </body>

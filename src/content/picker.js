@@ -134,26 +134,26 @@
     return 'body > ' + parts.join(' > ');
   }
 
+  /* The site this page is on, for what a post is and who wrote it. */
+  function site() {
+    return root.BFX_ENGINE && root.BFX_ENGINE.site;
+  }
+
+  function isPost(el) {
+    var s = site();
+    return !!(s && s.units && el.matches(s.units));
+  }
+
   /* A feed post is rebuilt and renumbered as you scroll, so no selector for
-   * it survives. Picking one means "posts from this author": the first link
-   * in its title (a page, a person or a group), matched up to its query
-   * string, which carries per-view tracking. */
+   * it survives. Picking one means "posts from this author", which each site
+   * pack works out from its own markup. */
   function authorOf(post) {
-    var link = post.querySelector('h4 a[href]');
-    if (!link) return null;
-    var href = link.getAttribute('href');
-    var m = /^([^?#]*)(\?id=\d+)?/.exec(href);
-    var base = m[1] + (m[2] || '');
-    if (!base || base === '/' || /facebook\.com\/?$/.test(base)) return null;
-    var next = base.indexOf('?') === -1 ? '?' : '&';
-    var selector = ['=', '^='].map(function (op) {
-      return 'div[aria-posinset]:has(h4 a[href' + op + cssString(op === '=' ? base : base + next) + '])';
-    }).join(', ');
-    return { selector: selector, name: link.textContent.trim() };
+    var s = site();
+    return s && s.picker && s.picker.authorOf ? s.picker.authorOf(post, cssString) : null;
   }
 
   function buildSelector(el) {
-    if (el.matches('[aria-posinset]')) {
+    if (isPost(el)) {
       var author = authorOf(el);
       if (author) {
         var posts = matches(author.selector);
@@ -182,7 +182,7 @@
   }
 
   function describe(el) {
-    if (el.matches('[aria-posinset]')) {
+    if (isPost(el)) {
       var author = authorOf(el);
       if (author) return 'Posts from ' + (author.name.length > 32 ? author.name.slice(0, 31) + '…' : author.name);
     }
@@ -249,7 +249,7 @@
       ? 'every post from ' + built.author
       : useBroad ? 'all ' + built.count + ' like it' : 'only this one';
 
-    var inFeed = !!target.closest('[aria-posinset], div[role="feed"], div[data-pagelet^="FeedUnit"]');
+    var inFeed = !!(site() && site().units && target.closest(site().units));
     if (!built.valid) {
       ui.warn.textContent = 'No selector matches this element — try ↑ for its parent.';
       ui.warn.dataset.level = 'bad';
@@ -323,11 +323,12 @@
       createdAt: Date.now()
     };
     stop();
+    var siteId = site().id;
     root.BFX_STORE.update(function (s) {
-      s.custom.push(rule);
+      root.BFX_STORE.site(s, siteId).custom.push(rule);
       return s;
     }).then(function () {
-      toast('Hidden “' + rule.label + '” — undo from the BlockFB popup');
+      toast('Hidden “' + rule.label + '” — undo from the BlockDistractXrn popup');
       if (onDone) onDone(rule);
     });
   }

@@ -1,6 +1,6 @@
 /* Keyboard shortcuts and the toolbar badge. Everything else happens in the
  * content script; the worker stays asleep almost all of the time. */
-importScripts('../common/storage.js');
+importScripts('../common/sites.js', '../common/storage.js');
 
 var store = self.BFX_STORE;
 
@@ -9,17 +9,17 @@ function paintBadge(state) {
   chrome.action.setBadgeBackgroundColor({ color: '#8a8d91' });
 }
 
-function activeFacebookTab() {
+/* The active tab, when it is on one of the supported sites. */
+function activeSiteTab() {
   return chrome.tabs.query({ active: true, currentWindow: true }).then(function (tabs) {
     var tab = tabs && tabs[0];
-    if (!tab || !tab.url) return null;
-    return /^https?:\/\/([a-z0-9-]+\.)?(facebook|messenger)\.com\//.test(tab.url) ? tab : null;
+    return tab && tab.url && self.BFX_SITES.forUrl(tab.url) ? tab : null;
   });
 }
 
 chrome.commands.onCommand.addListener(function (command) {
   if (command === 'toggle-picker') {
-    activeFacebookTab().then(function (tab) {
+    activeSiteTab().then(function (tab) {
       if (!tab) return;
       chrome.tabs.sendMessage(tab.id, { type: 'bfx:pick' }).catch(function () {
         /* content script not injected yet (tab predates the install) */

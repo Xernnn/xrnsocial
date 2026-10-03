@@ -9,11 +9,11 @@
     <div class="brand">
       <span class="logo">B</span>
       <div>
-        <strong>BlockFB</strong>
+        <strong>BlockDistractXrn</strong>
         <span class="sub" id="status">loading…</span>
       </div>
     </div>
-    <label class="switch big" title="Turn every rule on or off">
+    <label class="switch big" title="Pause or resume every rule on every site">
       <input type="checkbox" id="master" />
       <span class="track"></span>
     </label>
@@ -23,9 +23,11 @@
     <span class="pick-icon">⌖</span>
     <span>
       <b>Hide something by clicking it</b>
-      <em>Alt+Shift+H on any Facebook tab</em>
+      <em>Alt+Shift+H on any supported site</em>
     </span>
   </button>
+
+  <nav class="sites" id="sites" aria-label="Site"></nav>
 
   <nav class="tabs">
     <button class="tab is-on" data-tab="presets">Blocks</button>
@@ -34,6 +36,16 @@
   </nav>
 
   <section class="panel is-on" data-panel="presets">
+    <div class="row rowtop" id="siteRow">
+      <div class="row-text">
+        <b id="siteLabel">Use on this site</b>
+        <em>Off leaves this site exactly as it is; the other sites keep their rules.</em>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="siteEnabled" />
+        <span class="track"></span>
+      </label>
+    </div>
     <input type="search" id="filter" class="filter" placeholder="Filter blocks…" />
     <div id="presets"></div>
   </section>
@@ -46,7 +58,7 @@
     <div class="row rowtop">
       <div class="row-text">
         <b>Hide posts containing these words</b>
-        <em>One per line. Wrap in slashes for a regex: /crypto|nft/i</em>
+        <em>On every site. One per line. Wrap in slashes for a regex: /crypto|nft/i</em>
       </div>
       <label class="switch">
         <input type="checkbox" id="kwEnabled" />
@@ -77,7 +89,8 @@
     <span id="hidden" class="muted"></span>
   </footer>
 
-  <script src="../common/presets.js"></script>
+  <script src="../common/sites.js"></script>
+  <script src="../sites/facebook.js"></script>
   <script src="../common/storage.js"></script>
   <script src="popup.js"></script>
 </body>
