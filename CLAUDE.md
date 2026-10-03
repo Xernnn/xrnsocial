@@ -2,35 +2,60 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-BlockFB is a Manifest V3 Chrome/Edge extension that hides parts of Facebook (presets, a point-and-click picker, keyword blocks). There is no build step, no bundler, and no runtime dependencies. `jsdom` and `puppeteer-core` are only used by the tests. The project is a git repo on `main`.
+BlockDistractXrn (formerly BlockFB) is a Manifest V3 Chrome/Edge extension that hides the distracting parts of social sites: presets, a point-and-click picker and keyword blocks. Facebook is done. Reddit, X, LinkedIn, Instagram, TikTok and Twitch are being added in that order, one rule pack per site. There is no build step, no bundler, and no runtime dependencies. `jsdom` and `puppeteer-core` are only used by the tests. `main` holds the last Facebook-only release; multi-site work is on the `multi-site` branch. Internal names keep the old `bfx` prefix (storage key `bfx`, `data-bfx-*` attributes, `BFX_*` globals); renaming them would reset users' settings.
 
 ## Commands
 
 - `npm test`: runs `test/smoke.js` (jsdom, fast). It has no runner or filtering. Each check prints ✓/✗ and the process exits 1 on any failure. To focus on one area, temporarily comment out sections of `main()`. Sections share DOM and engine state, so a section that applies its own settings must re-apply `everything` before the next section relies on it.
 - `npm run test:browser`: runs `test/browser.js`, which loads the unpacked extension into Chrome for Testing headlessly. It serves `test/fixtures/feed.html` at `https://www.facebook.com/` through request interception, so content scripts inject for real. It changes settings through the service worker (`sw.evaluate('self.BFX_STORE.update(...)')`) and also drives the popup and options pages. Chrome comes from `CHROME_PATH` or the Playwright/Puppeteer cache. Branded Chrome won't load unpacked extensions from the command line. Run it after touching selectors, CSS, or anything in the popup or options page.
-- `npm run zip`: builds `blockfb.zip` (manifest, icons, src) for the Web Store.
-- Manual testing: `chrome://extensions` → Developer mode → **Load unpacked** → this folder. After editing content scripts, reload the extension and then reload the Facebook tab, because content scripts are injected only at page load.
+- `npm run zip`: builds `blockdistractxrn.zip` (manifest, icons, src) for the Web Store.
+- Manual testing: `chrome://extensions` → Developer mode → **Load unpacked** → this folder. After editing content scripts, reload the extension and then reload the site's tab, because content scripts are injected only at page load.
 
 ## Module system (no imports)
 
-Every file in `src/` is an ES5 IIFE that attaches a global to `self`: `BFX_PRESETS`/`BFX_GROUPS` (presets.js), `BFX_STORE` (storage.js), `BFX_ENGINE` (engine.js), `BFX_PICKER` (picker.js). Later files read earlier globals, so **load order matters**, and it is declared in five places that must stay in sync when you add or rename a file:
+Every file in `src/` is an ES5 IIFE that attaches a global to `self`: `BFX_SITES` (common/sites.js, the site list and pack registry), the site packs (`src/sites/<id>.js`, which call `BFX_SITES.register`), `BFX_STORE` (storage.js), `BFX_ENGINE` (engine.js) and `BFX_PICKER` (picker.js). Later files read earlier globals, so **load order matters**: `sites.js` → every `src/sites/*.js` → `storage.js` → engine → picker → main. It is declared in five places that must stay in sync when you add or rename a file, **including every new site pack**:
 
-1. `manifest.json` → `content_scripts[0].js`
-2. `src/popup/popup.html` `<script>` tags (presets + storage only)
-3. `src/options/options.html` `<script>` tags (presets + storage only)
-4. `src/background/service-worker.js` `importScripts` (storage only; it has no `document`)
-5. `test/smoke.js` eval list (all content scripts except `main.js`)
+1. `manifest.json` → `content_scripts[0].js` (and its `matches` plus `host_permissions` for a new site's hosts)
+2. `src/popup/popup.html` `<script>` tags (sites + packs + storage)
+3. `src/options/options.html` `<script>` tags (sites + packs + storage)
+4. `src/background/service-worker.js` `importScripts` (sites + storage only; it has no `document` and no packs)
+5. `test/smoke.js` `boot()` eval list (all content scripts except `main.js`)
 
 Match the existing style in `src/`: `var`, function expressions, `'use strict'`, no arrow functions, and comments that explain *why*.
 
 ## State and data flow
 
-- All settings live under **one key, `bfx`, in `chrome.storage.local`** (`src/common/storage.js`). Shape: `{ enabled, presets: {id: bool}, custom: [rule], keywords: { enabled, terms }, placeholders }`. A custom rule is `{ id, selector, label, scope: 'all'|'path', path, enabled, createdAt }`.
-- `merge()` layers `DEFAULTS` under stored values. As a result, turning off a default-on preset must be stored as an explicit `false`. Default-on presets are listed in `storage.js` `DEFAULTS.presets`, not in `presets.js`.
+- All settings live under **one key, `bfx`, in `chrome.storage.local`** (`src/common/storage.js`). Shape: `{ enabled, placeholders, keywords: { enabled, terms }, sites: { <siteId>: { enabled, presets: {id: bool}, custom: [rule] } } }`. The pause switch, "show" bars and word list are shared by every site; switches and picked rules belong to one site. A custom rule is `{ id, selector, label, scope: 'all'|'path', path, enabled, createdAt }`.
+- `merge()` builds a full state, with a slot for every site in `BFX_SITES.list`. Old single-site settings (top-level `presets`/`custom`) move into `sites.facebook`. Each site's default-on presets come from its pack (`on: true` on the preset), so turning one off must be stored as an explicit `false`. In the service worker no pack is loaded, so `merge()` there adds no defaults and keeps stored switches as they are.
+- `store.view(state, siteId)` is what a page runs on: the shared settings plus that site's `presets`/`custom`. Its `enabled` is false when everything is paused or that site is switched off. The engine only ever sees a view. Writers use `store.site(state, id)` to reach a site's slot inside `update()`.
 - Write with `store.update(fn)` (read-modify-write), never `store.set()` of a copy held in a page. The popup routes every write through `mutate()` for this reason and re-renders on `store.onChange`. The `Alt+Shift+B` shortcut and other windows write while the popup is open.
-- Backups go through `store.toBackup()`/`store.fromBackup()`. `fromBackup` rebuilds the state field by field and drops picked rules whose selector fails `store.validSelector()`.
+- Backups go through `store.toBackup()`/`store.fromBackup()`: `app: 'BlockDistractXrn'`, `version: 2`. `fromBackup` rebuilds the state field by field. It drops picked rules whose selector fails `store.validSelector()` and drops sites that don't exist. It still accepts old `app: 'BlockFB'` single-site files, which restore into Facebook.
 - Settings changes do **not** use messaging. The popup or service worker writes to storage, and `storage.onChanged` → `engine.apply(state)` in every open tab. Runtime messages (`bfx:pick`, `bfx:stopPick`, `bfx:status`, `bfx:rescan`, handled in `src/content/main.js`) are only for actions and querying tab status. `bfx:status` returns `engine.stats()`: per-rule match counts that the popup shows as "3 here", "none here" or "broken".
-- Facebook is an SPA. `main.js` polls `location.pathname` once a second and calls `engine.refresh()` so path-scoped custom rules update. It also calls `guardRoute()`, which uses `engine.redirectFor()` to send `/reel(s)/` pages home when the Reels preset is on. Patching `history.pushState` would not work because content scripts run in an isolated world.
+- Every supported site is an SPA. `main.js` polls `location.pathname` once a second and calls `engine.refresh()` so path-scoped custom rules update. It also calls `guardRoute()`: `engine.redirectFor(fullState, location)` asks the site pack's `redirect(view, loc)`, e.g. Facebook sends `/reel(s)/` home when the Reels preset is on. Patching `history.pushState` would not work because content scripts run in an isolated world. On a host with no pack, `engine.site` is null and `main.js` exits immediately.
+
+## Site packs (`src/sites/<id>.js`)
+
+A pack calls `BFX_SITES.register({...})` with:
+- `id`, matching an entry in `BFX_SITES.list` (hostnames live there).
+- `units`: the selector for one post or feed unit.
+- `presets`: the switches, schema below. Shared ones come from `BFX_SITES.common` (`blackWhite()`, `blur(postSelector)`, `noAutoplay(group, desc)`).
+- `heuristics` (per-unit, keyed by `js.kind`, called as `fn(unit, rule.js, ctx, api)`) and `globals` (keyed by preset id, called as `fn(api)`).
+- Optional:
+  - `silent`: preset ids that leave no "show" bar.
+  - `body`: a selector for the post's own text, cut out of `headText`.
+  - `unseen`: extra subtrees `readableText` skips.
+  - `cardStop`: what `cardFor` must not swallow more than one of.
+  - `skip(unit)`: units not to judge.
+  - `redirect(view, loc)`.
+  - `picker.authorOf(post, cssString)`.
+
+`api` (built in engine.js) gives packs `hide`, `HIDDEN`, `state()`, `generation()`, `firstLook`, `visibleText`, `readableText`, `headText`, `looksSponsored`, `referencedText`, `cardFor`, `climbTo`, `stripTitleCount`, `feedText`, `AD_WORD`, `AD_LABEL` and `INVISIBLE_CHARS`. Don't reach into engine internals from a pack.
+
+Adding a site:
+1. Write the pack, following the live-check method below. Detection must come from measuring the logged-in site, never guessing.
+2. Add it to the five load-order places and the manifest.
+3. Add a fixture `test/fixtures/<id>.html` copied from the live structure with made-up text, plus jsdom and real-Chrome checks.
+4. Update the README's Sites table and verify live: hidden things stay hidden while scrolling and hovering, every switch toggles on and off, and risky combinations work.
 
 ## Engine (`src/content/engine.js`)
 
@@ -57,7 +82,7 @@ Heuristics come in two kinds, wired differently:
 - **Per-feed-unit**: the preset's `js.kind` must be a key in `HEURISTICS` (`sponsored`, `suggested`, `recommendations`, `reels`, `feedText`). Presets whose kind isn't in `HEURISTICS` are silently filtered out of `jsRules`. `feedText` matches only `headText()`: the start of the unit with the message body (`data-ad-preview="message"`) and nested articles cut out. Its `phrases` are keyed by language, and all languages are tried at once.
 - **Global**: `badges`, `rightAds`, `adSweep`, `postActions`, `feed`. These are keyed by **preset id**, not by kind. A new global heuristic must be added to both `GLOBAL_JS` and `runGlobalHeuristics()`.
 
-What identifies things on live Facebook (verified October 2026; re-verify before "fixing" any of it):
+What identifies things on live Facebook, implemented in `src/sites/facebook.js` (verified October 2026; re-verify before "fixing" any of it). Each new site gets its own paragraph like this:
 - **Ads**: in the post header, a link whose **entire** text is a word joiner (U+2060), checked by `isAdSlot`/`hasAdJoiner` and present from first render. Facebook draws the visible "Ad" over that slot from another element, so the label never exists as text in the post. A link that merely *starts* with a joiner (check-ins, pasted text) is not an ad; this was seen in search results. The fallback is an `a [aria-labelledby]` whose referenced element reads exactly "Ad" (`referencedText`/`AD_LABEL`). Facebook now rarely attaches that reference, so don't rely on it. `sweepAds` uses the same slot test outside the feed (Watch, search and Marketplace, where tiles also show a visible "Ad"). It keeps a per-label verdict and re-checks known ad labels every scan, in case the card around them is rebuilt. Issue ads still show a visible "Sponsored". **Never use `data-ad-preview`, `data-ad-comet-preview` or `data-ad-rendering-role` as ad signals.** They are on every post; use them only as structure (e.g. `like_button`/`comment_button` markers for the action bar and counts).
 - **Suggested posts**: a `[role="button"]` (Follow/Join) inside the unit's *first* `h4` (the title). A shared page post has its own Follow button further down, so don't look past the first `h4`.
 - **Recommendation carousels** (people you may know, group suggestions): a unit with no `h4` whose buttons repeat the same text. Count only text with letters, and ignore buttons inside comments. The Reels shelf has the same shape and is excluded via `/reel/` links. Facebook obfuscates the label with shuffled spans and hidden decoy letters, so `FUZZY` is a loose prefilter and `visibleText()`/`isVisible()` make the final call. `cardFor()` climbs from a label to the card-sized ancestor and must never hide a whole surface (feed, main, Stories tray, Marketplace grid).
@@ -68,7 +93,7 @@ Facebook's class names (`x1n2onr6`) and React ids (`:r7:`) change with every bui
 
 Chrome rejects `:has()` nested inside `:has()`, but jsdom accepts it. Only `npm run test:browser` catches that, which is why "smallest box containing both X and Y" rules (like `postActions`) are JS heuristics. Custom selectors pass `store.validSelector()` before they reach the stylesheet, because one that doesn't parse could close its rule and inject CSS.
 
-Preset schema (`src/common/presets.js`): `{ id, group, label, desc, css?: [selectors], style?: rawCss, js?: { kind, ...params }, behavior?: true }`. `behavior` marks a switch the engine implements directly by preset id (`noAutoplay` pauses videos started without a recent pointerdown or Enter/Space). Like effect-only presets, it has no count in `stats()`. Popup groups come from the order of `group` values. The README states the preset count (34) and the default-on count (7). Update those numbers when you add presets.
+Preset schema (in each `src/sites/<id>.js`): `{ id, group, label, desc, on?: true, css?: [selectors], style?: rawCss, js?: { kind, ...params }, behavior?: true }`. `on` marks a switch that is on by default. `behavior` marks a switch the engine implements directly by preset id (`noAutoplay` pauses videos started without a recent pointerdown or Enter/Space). Like effect-only presets, it has no count in `stats()`. Popup groups come from the order of `group` values. The README states Facebook's preset count (34) and default-on count (7). Update those numbers when you add presets.
 
 ## Test harness quirks
 
@@ -77,7 +102,9 @@ Preset schema (`src/common/presets.js`): `{ id, group, label, desc, css?: [selec
 - `test/fixtures/feed.html` is the current Facebook structure, copied from the live site with made-up text. Both suites load it: the smoke test's last section via `boot()`, and the browser test as the page served at facebook.com. Boxes carry inline sizes for Chrome and `data-h` for jsdom. The smoke test's inline `PAGE` is the older markup (`role="feed"`, `data-pagelet`), kept so the legacy hooks stay working. `test/fixtures/snapshots/*.html` are the user's saved Facebook pages. They are gitignored, served with `<script>` tags stripped, and checked only for "ad rules don't hide most of the feed".
 - The smoke test does not load `main.js`, the popup, or the service worker. `chrome.*` is a minimal stub whose `onChanged` never fires, so tests call `BFX_ENGINE.apply()` directly and wait about one frame.
 
-## Checking against live Facebook
+## Checking against live sites
+
+`test/live/lib.js` has the helpers this needs: connect, find a site's tab, restore a minimized window, evaluate in the content-script world, save and restore the person's settings, reload the extension, trusted scrolling, and per-site sign-in checks. `node test/live/status.js` lists which sites the test window is signed into. Put new probes beside them rather than in a temp folder, which can be wiped mid-session.
 
 Fixtures only prove the code matches the fixtures. When rules "don't work", measure the real site before changing anything. Check that hidden things *stay* hidden while scrolling and hovering, not just that they get hidden: the class-wipe bypass only showed up over time. This is what worked:
 - Launch Chrome for Testing headed with `--user-data-dir=<scratch dir> --remote-debugging-port=9333 --load-extension=<repo> --disable-extensions-except=<repo>`. The user logs in themselves; never handle credentials. Then drive it with `puppeteer.connect({ browserURL })`.

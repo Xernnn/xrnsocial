@@ -48,8 +48,10 @@ function findChrome() {
 /* The preset list, read the same way the extension reads it. */
 function loadPresets() {
   const sandbox = { self: {} };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'src/common/presets.js'), 'utf8'), sandbox);
-  return sandbox.self.BFX_PRESETS;
+  for (const file of ['src/common/sites.js', 'src/sites/facebook.js']) {
+    vm.runInNewContext(fs.readFileSync(path.join(root, file), 'utf8'), sandbox);
+  }
+  return sandbox.self.BFX_SITES.get('facebook').presets;
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -114,7 +116,7 @@ async function until(fn, timeout = 3000) {
       await page.waitForSelector('#bfx-style');
     };
     const only = async (...ids) => {
-      await setState(`s => { Object.keys(s.presets).forEach(k => { s.presets[k] = false; }); ${ids.map(id => `s.presets.${id} = true;`).join(' ')} }`);
+      await setState(`s => { const p = s.sites.facebook.presets; ${JSON.stringify(presets.map(r => r.id))}.forEach(k => { p[k] = false; }); ${ids.map(id => `p.${id} = true;`).join(' ')} }`);
     };
 
     /* ---------------------------------------------------------- selectors -- */
@@ -168,7 +170,7 @@ async function until(fn, timeout = 3000) {
 
     /* --------------------------------------------------------- live update -- */
     console.log('\nsettings changes reach open tabs');
-    await setState('s => { s.presets.stories = true; }');
+    await setState('s => { s.sites.facebook.presets.stories = true; }');
     ok('turning Stories on hides them without a reload', await until(() => isHidden('stories')));
     await setState('s => { s.enabled = false; }');
     ok('pausing brings the ad back', await until(async () => !(await isHidden('u-ad'))));
@@ -258,7 +260,7 @@ async function until(fn, timeout = 3000) {
     await page.goto('https://www.facebook.com/reel/123456/', { waitUntil: 'domcontentloaded' }).catch(() => {});
     ok('opening a reel lands on the home feed', await until(() => new URL(page.url()).pathname === '/', 5000),
       'stayed on ' + page.url());
-    await setState('s => { s.presets.reels = false; }');
+    await setState('s => { s.sites.facebook.presets.reels = false; }');
     await page.goto('https://www.facebook.com/reel/123456/', { waitUntil: 'domcontentloaded' });
     await sleep(500);
     ok('with the Reels rule off, the reel stays open', new URL(page.url()).pathname === '/reel/123456/', page.url());
@@ -272,14 +274,21 @@ async function until(fn, timeout = 3000) {
     await popup.goto(`chrome-extension://${extId}/src/popup/popup.html`);
     ok('every preset gets a row', await until(async () =>
       (await popup.$$eval('#presets .row', rows => rows.length)) === presets.length));
-    ok('the status line counts active rules', /^\d+ rules active$/.test(
+    ok('the status line counts active rules', /^Facebook: \d+ rules active$/.test(
       await popup.$eval('#status', n => n.textContent)), await popup.$eval('#status', n => n.textContent));
-    await sw.evaluate('self.BFX_STORE.update(s => { s.enabled = false; s.presets.stories = true; })');
+    await sw.evaluate('self.BFX_STORE.update(s => { s.enabled = false; s.sites.facebook.presets.stories = true; })');
     ok('a change made elsewhere shows up in the open popup', await until(async () =>
       (await popup.$eval('#status', n => n.textContent)).startsWith('paused')));
     await popup.click('#master');
     ok('switching in the popup keeps the other change', await until(() =>
-      sw.evaluate('self.BFX_STORE.get().then(s => s.enabled && s.presets.stories)')));
+      sw.evaluate('self.BFX_STORE.get().then(s => s.enabled && s.sites.facebook.presets.stories)')));
+    const chips = await popup.$$eval('#sites .site', b => b.map(x => x.textContent));
+    ok('the popup offers each site that has rules', chips.length >= 1 && chips[0] === 'Facebook', JSON.stringify(chips));
+    await popup.click('#siteEnabled');
+    ok('the per-site switch turns off only that site', await until(() =>
+      sw.evaluate('self.BFX_STORE.get().then(s => s.enabled && s.sites.facebook.enabled === false)')));
+    ok("and that site's pages stop hiding things", await until(async () => !(await isHidden('u-ad'))));
+    await popup.click('#siteEnabled');
     ok('no script errors', errors.length === 0, errors.join(' | '));
     await popup.close();
 
@@ -314,11 +323,12 @@ async function until(fn, timeout = 3000) {
       await options.$eval('#preview', n => n.textContent)));
     await options.click('#restore');
     const restored = await (async () => {
-      await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.custom.length === 1)'));
+      await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.sites.facebook.custom.length === 1)'));
       return sw.evaluate('self.BFX_STORE.get()');
     })();
-    ok('restoring replaces the settings', restored.presets.stories === true && restored.presets.reels === false &&
-      restored.custom.length === 1 && restored.keywords.terms[0] === 'crypto', JSON.stringify(restored));
+    const fb = restored.sites.facebook;
+    ok('restoring an old BlockFB backup puts it back into Facebook', fb.presets.stories === true && fb.presets.reels === false &&
+      fb.custom.length === 1 && restored.keywords.terms[0] === 'crypto', JSON.stringify(restored));
     ok('no script errors', errors.length === 0, errors.join(' | '));
     fs.rmSync(tmp, { recursive: true, force: true });
 

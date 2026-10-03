@@ -1,10 +1,13 @@
-/* Bootstrap: load state, apply it, and keep applying it as Facebook navigates. */
+/* Bootstrap: load state, apply it, and keep applying it as the site navigates. */
 (function (root) {
   'use strict';
 
   var store = root.BFX_STORE;
   var engine = root.BFX_ENGINE;
   var picker = root.BFX_PICKER;
+
+  /* A site whose rules are not written yet: nothing to apply, nothing to pick. */
+  if (!engine.site) return;
 
   var current = null;
 
@@ -25,11 +28,11 @@
   store.get().then(applyState);
   store.onChange(applyState);
 
-  /* Facebook is a single-page app: the path changes with no page load, which
-   * matters for custom rules scoped to one page. Patching history.pushState
-   * would not help — a content script runs in its own JS world and never sees
-   * the page's own calls — so watch the URL instead. Once a second, one string
-   * comparison. */
+  /* Every supported site is a single-page app: the path changes with no page
+   * load, which matters for custom rules scoped to one page. Patching
+   * history.pushState would not help — a content script runs in its own JS
+   * world and never sees the page's own calls — so watch the URL instead.
+   * Once a second, one string comparison. */
   var lastPath = location.pathname;
   function onRoute() {
     if (location.pathname === lastPath) return;

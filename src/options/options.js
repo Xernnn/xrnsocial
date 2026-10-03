@@ -1,7 +1,7 @@
 'use strict';
 
 var store = window.BFX_STORE;
-var PRESETS = window.BFX_PRESETS;
+var SITES = window.BFX_SITES;
 
 var el = {
   current: document.getElementById('current'),
@@ -18,13 +18,35 @@ function plural(n, word) {
   return n + ' ' + word + (n === 1 ? '' : 's');
 }
 
+function pickedCount(s) {
+  return Object.keys(s.sites).reduce(function (n, id) { return n + s.sites[id].custom.length; }, 0);
+}
+
+/* Blocks are counted only for sites whose rules are loaded here, and only
+ * for switches that still exist. */
 function summary(s) {
-  var on = PRESETS.filter(function (r) { return s.presets[r.id]; }).length;
+  var on = SITES.available().reduce(function (n, p) {
+    var mine = s.sites[p.id];
+    return n + (mine ? p.presets.filter(function (r) { return mine.presets[r.id]; }).length : 0);
+  }, 0);
   return [
     plural(on, 'block') + ' on',
-    plural(s.custom.length, 'picked rule'),
+    plural(pickedCount(s), 'picked rule'),
     plural(s.keywords.terms.length, 'blocked word')
   ].join(' · ') + (s.enabled ? '' : ' · paused');
+}
+
+/* Picked rules in a file as written, before validation, in either format. */
+function givenCount(data) {
+  var s = data && data.settings ? data.settings : data;
+  if (!s) return 0;
+  if (s.sites && typeof s.sites === 'object') {
+    return Object.keys(s.sites).reduce(function (n, id) {
+      var list = s.sites[id] && s.sites[id].custom;
+      return n + (Array.isArray(list) ? list.length : 0);
+    }, 0);
+  }
+  return Array.isArray(s.custom) ? s.custom.length : 0;
 }
 
 function message(text, level) {
@@ -41,7 +63,7 @@ el.exportBtn.addEventListener('click', function () {
     var json = JSON.stringify(store.toBackup(s), null, 2);
     var a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-    a.download = 'blockfb-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    a.download = 'blockdistractxrn-backup-' + new Date().toISOString().slice(0, 10) + '.json';
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -57,7 +79,7 @@ el.file.addEventListener('change', function () {
   message('');
   if (!file) return;
   if (file.size > 1024 * 1024) {
-    message('That file is too big to be a BlockFB backup.', 'bad');
+    message('That file is too big to be a ' + store.APP + ' backup.', 'bad');
     return;
   }
   file.text().then(function (text) {
@@ -69,8 +91,7 @@ el.file.addEventListener('change', function () {
     }
     pending = store.fromBackup(data);
 
-    var given = data.app === 'BlockFB' ? data.settings.custom : data.custom;
-    var dropped = (Array.isArray(given) ? given.length : 0) - pending.custom.length;
+    var dropped = givenCount(data) - pickedCount(pending);
     el.preview.textContent = 'This backup has ' + summary(pending) + '.' +
       (dropped > 0 ? ' ' + plural(dropped, 'picked rule') + ' will be skipped: not a valid selector.' : '');
     el.restore.disabled = false;
@@ -81,13 +102,13 @@ el.file.addEventListener('change', function () {
 
 el.restore.addEventListener('click', function () {
   if (!pending) return;
-  if (!confirm('Replace all your current BlockFB settings with this backup?')) return;
+  if (!confirm('Replace all your current ' + store.APP + ' settings with this backup?')) return;
   store.set(pending).then(function () {
     pending = null;
     el.restore.disabled = true;
     el.file.value = '';
     el.preview.textContent = '';
-    message('Restored. Open Facebook tabs have already updated.', 'ok');
+    message('Restored. Open tabs have already updated.', 'ok');
   });
 });
 

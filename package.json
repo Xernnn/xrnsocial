@@ -1,12 +1,12 @@
 {
-  "name": "blockfb",
-  "version": "1.0.0",
+  "name": "blockdistractxrn",
+  "version": "2.0.0",
   "private": true,
-  "description": "Chrome extension that makes every part of Facebook toggleable.",
+  "description": "Chrome extension that switches off the distracting parts of Facebook, Reddit, X, LinkedIn, Instagram, TikTok and Twitch.",
   "scripts": {
     "test": "node test/smoke.js",
     "test:browser": "node test/browser.js",
-    "zip": "rm -f blockfb.zip && zip -r blockfb.zip manifest.json icons src -x '*.DS_Store'"
+    "zip": "rm -f blockdistractxrn.zip && zip -r blockdistractxrn.zip manifest.json icons src -x '*.DS_Store'"
   },
   "devDependencies": {
     "jsdom": "^24.0.0",

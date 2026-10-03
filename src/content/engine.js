@@ -1,42 +1,38 @@
-/* The rule engine.
+/* The rule engine, shared by every site.
  *
  * Two mechanisms, deliberately:
  *   1. A single injected <style> sheet for everything expressible in CSS.
- *      Zero per-frame cost, survives Facebook's re-renders for free, and it is
+ *      Zero per-frame cost, survives a site's re-renders for free, and it is
  *      applied at document_start so hidden things never flash into view.
  *   2. A debounced MutationObserver for the handful of things CSS cannot see:
  *      "is this post an ad?", "does this post contain a word I banned?".
+ *
+ * What a post is, which switches exist and how a site's ads give themselves
+ * away come from the site's rule pack (src/sites/<id>.js). The engine hands
+ * each pack the same small API (see `api` below).
  */
 (function (root) {
   'use strict';
 
-  var PRESETS = root.BFX_PRESETS;
+  var SITES = root.BFX_SITES;
   var STORE = root.BFX_STORE;
   var STYLE_ID = 'bfx-style';
-  /* What is hidden is marked with attributes, never classes. Facebook's
-   * React rewrites an element's class list whenever it re-renders it (hover,
-   * scroll, new data), which silently un-hid ads that had been hidden with a
-   * class. Attributes it did not set, it leaves alone. */
+  /* What is hidden is marked with attributes, never classes. React rewrites
+   * an element's class list whenever it re-renders it (hover, scroll, new
+   * data), which silently un-hid ads that had been hidden with a class.
+   * Attributes it did not set, it leaves alone. */
   var BY = 'data-bfx-hidden-by';
   var NOTE = 'data-bfx-note';
   var REVEALED = 'data-bfx-revealed';
   var HIDDEN = '[' + BY + ']';
 
-  /* Feed posts. Today's feed marks each post with aria-posinset (the ARIA
-   * feed pattern) and nothing else stable: no role="feed", no data-pagelet,
-   * and role="article" now means a comment, which is not a post. The older
-   * hooks stay for builds that still ship them. */
-  var UNIT_SELECTOR = [
-    'div[aria-posinset]',
-    'div[data-pagelet^="FeedUnit"]',
-    'div[role="feed"] > div'
-  ].join(',');
+  /* The rule pack for the site this page is on; null on a site without one. */
+  var site = SITES.get(SITES.forHost(location.hostname));
+  var UNITS = site ? site.units : null;
+  var SILENT = (site && site.silent) || {};
 
-  /* Rules that leave no placeholder behind: an ad is never something you
-   * want to click back open. */
-  var SILENT = { sponsored: true };
-
-  var state = null;
+  var full = null;         // the full settings last applied, for refresh()
+  var state = null;        // the current site's view of them (STORE.view)
   var generation = 0;      // bumped on every settings change, invalidates marks
   var observer = null;
   var pending = false;
@@ -57,7 +53,8 @@
   }
 
   /* A hidden post that keeps a one-line bar in its place. Higher specificity
-   * than the plain hidden rule, so it wins without fighting over order. */
+   * than the plain hidden rule, so it wins without fighting over order. The
+   * colours are Facebook's variables, with neutral fallbacks elsewhere. */
   var PLACEHOLDER = HIDDEN + '[' + NOTE + ']';
   var PLACEHOLDER_CSS = [
     PLACEHOLDER + '{display:block !important;cursor:pointer}',
@@ -76,7 +73,7 @@
 
     var selectors = [];
 
-    PRESETS.forEach(function (rule) {
+    site.presets.forEach(function (rule) {
       if (!s.presets[rule.id]) return;
       if (rule.css) selectors = selectors.concat(rule.css);
       if (rule.style) out.push(rule.style);
@@ -92,7 +89,7 @@
     });
 
     /* One selector per line: an invalid selector kills only its own rule,
-     * not the whole sheet. Facebook changes; rules will break individually. */
+     * not the whole sheet. Sites change; rules will break individually. */
     selectors.forEach(function (sel) {
       out.push(sel + '{display:none !important}');
     });
@@ -107,7 +104,7 @@
     var cs = getComputedStyle(el);
     if (cs.display === 'none' || cs.visibility === 'hidden') return false;
     if (parseFloat(cs.opacity) === 0) return false;
-    // Facebook's ad label hides decoy letters off-screen or at zero size.
+    // Ad labels hide decoy letters off-screen or at zero size.
     if (cs.position === 'absolute' && (parseFloat(cs.left) < -500 || parseFloat(cs.top) < -500)) return false;
     var r = el.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) return false;
@@ -130,14 +127,11 @@
     return out.trim();
   }
 
-  /* The post's own words, as opposed to the frame Facebook puts around them.
-   * Facebook marks the message body this way on every post, ads or not. */
-  var BODY = '[data-ad-preview="message"], [data-ad-comet-preview="message"], blockquote';
-
-  /* Text in a post that nobody sees: the hidden "Facebook" decoys, the
-   * "Online status indicator" and "Active" of an avatar dot, icon titles
-   * ("Shared with Public"), image descriptions. */
-  var UNSEEN = '[aria-hidden="true"], svg, script, style, [data-visualcompletion="ignore"]';
+  /* Text in a post that nobody sees: hidden decoys (Facebook hides the word
+   * "Facebook" thirty-odd times in every post), icon titles ("Shared with
+   * Public"), plus whatever the site adds. */
+  var UNSEEN = '[aria-hidden="true"], svg, script, style' + (site && site.unseen ? ', ' + site.unseen : '');
+  var BODY = (site && site.body) || '';
 
   /* The words a reader of the post actually sees. Word blocks match against
    * this, or blocking "public" or "Facebook" would hide every post. */
@@ -161,18 +155,17 @@
     return !!outer && (outer === unit || unit.contains(outer));
   }
 
-  /* The top of a unit with the post body, comments and unseen text cut out
-   * (every post opens with a hidden block of the word "Facebook" repeated
-   * thirty-odd times, parked off-screen): the section
-   * header ("Suggested for you") and the author line ("Ana commented on
-   * this") are what identify a kind of post. Matching here instead of the
-   * whole text means a post that merely mentions the phrase is left alone. */
+  /* The top of a unit with the post body (the site's `body` selector),
+   * comments and unseen text cut out: the section header ("Suggested for
+   * you") and the author line ("Ana commented on this") are what identify a
+   * kind of post. Matching here instead of the whole text means a post that
+   * merely mentions the phrase is left alone. */
   function headText(unit, limit) {
     var out = '';
     var walker = document.createTreeWalker(unit, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
       acceptNode: function (n) {
         if (n.nodeType === 3) return NodeFilter.FILTER_ACCEPT;
-        if (n.matches(BODY) || n.matches(UNSEEN) || isNestedArticle(n, unit)) {
+        if ((BODY && n.matches(BODY)) || n.matches(UNSEEN) || isNestedArticle(n, unit)) {
           return NodeFilter.FILTER_REJECT;
         }
         return NodeFilter.FILTER_SKIP;
@@ -210,7 +203,7 @@
 
   function hide(el, why, note) {
     if (!el || el.hasAttribute(BY)) return;
-    var text = note && state && state.placeholders ? 'Hidden by BlockFB · ' + note + ' — click to show' : null;
+    var text = note && state && state.placeholders ? 'Hidden by BlockDistractXrn · ' + note + ' — click to show' : null;
     mark(el, why, text);
     el.__bfxHide = { why: why, note: text };
     hiddenEls.add(el);
@@ -251,11 +244,10 @@
 
   /* ------------------------------------------------------- autoplay -- */
 
-  /* Facebook starts feed videos as they scroll into view. With the switch
-   * on, a video that starts playing without a click or Enter/Space in the
-   * moment before is paused again; one the person started plays on. Media
-   * events do not bubble, but capturing listeners on the document still see
-   * them. */
+  /* Sites start videos as they scroll into view. With the switch on, a video
+   * that starts playing without a click or Enter/Space in the moment before
+   * is paused again; one the person started plays on. Media events do not
+   * bubble, but capturing listeners on the document still see them. */
   var GESTURE_MS = 1500;
   var lastGesture = 0;
 
@@ -285,38 +277,27 @@
     return node;
   }
 
-  /* --------------------------------------------------------- heuristics -- */
+  /* "(3) Facebook" in the tab title pulls just as hard as the red dot. */
+  function stripTitleCount() {
+    var clean = document.title.replace(/^\(\d+\+?\)\s*/, '');
+    if (clean !== document.title) document.title = clean;
+  }
 
-  /* No markup signal here on purpose. data-ad-preview, data-ad-rendering-role
-   * and friends sound ad-only but are rendered on ordinary posts too — the
-   * story template is shared — so any of them would hide the whole feed.
-   * (They are fine as structure, e.g. to find the Like button.) */
+  /* ----------------------------------------------------------- ad labels -- */
 
-  /* The label links to the ad-preferences explainer; ordinary posts do not. */
-  var AD_LINKS = [
-    'a[href*="/ads/about"]',
-    'a[href*="ad_preferences"]',
-    'a[aria-label="Sponsored"]',
-    '[aria-label^="Sponsored"]'
-  ].join(',');
-
-  /* Where a label could be hiding. */
-  var LABEL_NODES = 'span[dir="auto"], h3, h4, a[role="link"]';
-
-  /* Facebook breaks the word "Sponsored" into shuffled spans and pads it with
-   * decoy letters that CSS hides, so the raw text reads like "SpSonsoreedd".
-   * This prefilter is loose on purpose; visibleText() then makes the call. */
-  var FUZZY = /s.{0,3}p.{0,3}o.{0,3}n.{0,3}s.{0,3}o.{0,3}r/i;
-
-  /* Confirmed labels. The link test above carries non-English Facebook on its
-   * own; these are the languages worth spelling out. */
+  /* Labels sites print on ads, as a prefix of the label's visible text. */
   var AD_WORD = /^(sponsored|sponsrad|gesponsert|gesponsord|patrocinad|publicidad|sponsoris|sponsorizzat|sponsorowane|sponsorlu|bersponsor|được tài trợ|publicidade|реклама|广告|廣告|広告|إعلان)/i;
   var PARTNER_WORD = /^paid (partnership|promotion)/i;
 
   /* The whole label, for labels too short to match as a prefix. */
   var AD_LABEL = /^(ad|sponsored|quảng cáo|được tài trợ|publicidad|anuncio|patrocinado|anúncio|publicité|sponsorisé|anzeige|gesponsert|annuncio|sponsorizzato|iklan|bersponsor|реклама|广告|廣告|広告|إعلان)$/i;
 
-  var INVISIBLE_CHARS = /[\u200b-\u200d\u2060\ufeff]/g;
+  /* Facebook breaks the word "Sponsored" into shuffled spans and pads it with
+   * decoy letters that CSS hides, so the raw text reads like "SpSonsoreedd".
+   * This prefilter is loose on purpose; visibleText() then makes the call. */
+  var FUZZY = /s.{0,3}p.{0,3}o.{0,3}n.{0,3}s.{0,3}o.{0,3}r/i;
+
+  var INVISIBLE_CHARS = /[​-‍⁠﻿]/g;
 
   function looksSponsored(el) {
     var raw = (el.textContent || '').replace(INVISIBLE_CHARS, '').trim();
@@ -326,14 +307,8 @@
     return AD_WORD.test(shown) || AD_LABEL.test(shown) || PARTNER_WORD.test(shown);
   }
 
-  /* Facebook's current label is not text in the post at all. Where an
-   * ordinary post's header links to "2 hours ago", an ad's header link holds
-   * an empty span whose aria-labelledby points at a detached element reading
-   * "Ad". Matched whole, so a timestamp or a page name can never pass. */
-  var LABEL_REFS = 'a[role="link"] [aria-labelledby]';
-
   /* The text an element is labelled by, or null while a referenced element
-   * is missing or empty: Facebook fills them in a frame or two later. */
+   * is missing or empty: sites fill them in a frame or two later. */
   function referencedText(el) {
     var ids = (el.getAttribute('aria-labelledby') || '').split(/\s+/);
     var out = '';
@@ -347,152 +322,25 @@
     return out || null;
   }
 
-  /* Facebook attaches that label only once the ad scrolls into view, but the
-   * header link gives the ad away before then: its text starts with an
-   * invisible word joiner (U+2060). On the live feed it was on every ad and
-   * on nothing else, so ads go before they are ever drawn. The header links
-   * come first, so only the first few are looked at. */
-  function isAdSlot(link) {
-    var text = link.textContent;
-    return text.charAt(0) === '\u2060' && !text.replace(INVISIBLE_CHARS, '').trim();
-  }
-
-  /* The joiner is the whole text of that link: Facebook draws the word "Ad"
-   * over it from elsewhere. A link that merely starts with one (pasted text)
-   * does not count. */
-  function hasAdJoiner(root) {
-    var links = root.querySelectorAll('a');
-    for (var i = 0; i < links.length && i < 10; i++) {
-      if (isAdSlot(links[i])) return true;
-    }
-    return false;
-  }
-
-  /* 'ad', 'unknown' while labels are still being filled in, or null. */
-  function adLabelIn(root) {
-    var refs = root.querySelectorAll(LABEL_REFS);
-    var pending = false;
-    for (var i = 0; i < refs.length && i < 8; i++) {
-      var text = referencedText(refs[i]);
-      if (text === null) pending = true;
-      else if (AD_LABEL.test(text)) return 'ad';
-    }
-    return pending ? 'unknown' : null;
-  }
-
-  var HEURISTICS = {
-    /* Ads in the feed. Independent signals, because any one of them can
-     * disappear in a Facebook deploy: the explainer link, the referenced
-     * "Ad" label, and a "Sponsored" label written out in the post (issue
-     * ads still do that, with "Paid for by ..." under it). */
-    sponsored: function (unit, rule, ctx) {
-      if (unit.querySelector(AD_LINKS) || hasAdJoiner(unit)) return true;
-      var label = adLabelIn(unit);
-      if (label === 'ad') return true;
-      var labels = unit.querySelectorAll(LABEL_NODES);
-      for (var i = 0; i < labels.length && i < 12; i++) {
-        if (looksSponsored(labels[i])) return true;
-      }
-      if (label === 'unknown') ctx.unsure();
-      return false;
-    },
-
-    /* Facebook dropped the "Suggested for you" line. A post from a page or
-     * person you do not follow now has a Follow button inside its title (Join,
-     * for a group) — no text needed, so any language. Only the first title
-     * counts: a friend sharing a page's post carries the page's title, with
-     * its own Follow button, further down. */
-    suggested: function (unit, rule, ctx) {
-      var title = unit.querySelector('h4');
-      if (title && title.querySelector('[role="button"]')) return true;
-      return HEURISTICS.feedText(unit, rule, ctx);
-    },
-
-    /* "People you may know", "Your group suggestions" and the like are
-     * carousels, not posts: no author title, and the same button (Add
-     * friend, Join group) on every card. Counting repeated button text needs
-     * no language. The Reels shelf has the same shape, so it is left to the
-     * Reels rule. */
-    recommendations: function (unit, rule, ctx) {
-      if (!unit.querySelector('h4') && !unit.querySelector('a[href*="/reel/"]')) {
-        var seen = {};
-        var buttons = unit.querySelectorAll('[role="button"]');
-        for (var i = 0; i < buttons.length; i++) {
-          /* Every comment has its own Like and Reply. */
-          if (buttons[i].closest('[role="article"]')) continue;
-          var text = buttons[i].textContent.trim();
-          /* Words only: equal counts ("1" comment, "1" share) are not cards. */
-          if (text.length > 30 || !/\p{L}/u.test(text)) continue;
-          if (seen[text]) return true;
-          seen[text] = true;
-        }
-      }
-      return HEURISTICS.feedText(unit, rule, ctx);
-    },
-
-    /* A Reels shelf is a feed unit full of /reel/ links. A post sharing one
-     * reel goes too: the switch promises every reel. */
-    reels: function (unit, rule, ctx) {
-      if (unit.querySelector('a[href*="/reel/"], [aria-label^="Reel by"]')) return true;
-      return HEURISTICS.feedText(unit, rule, ctx);
-    },
-
-    /* Section headers and "why am I seeing this" strings that identify a whole
-     * class of unit. Matched against the unit's header only. */
-    feedText: function (unit, rule, ctx) {
-      var head = ctx.head();
-      return phrasesOf(rule).some(function (p) {
-        return head.indexOf(p) !== -1;
-      });
-    }
-  };
-
-  /* Heuristics that work on a container other than a feed unit, so they are
-   * not part of the per-unit loop — but they still need the observer running. */
-  var GLOBAL_JS = ['badges', 'rightAds', 'adSweep', 'postActions', 'feed'];
-
-  /* Heuristics that work on a container other than a feed unit. */
-  function runGlobalHeuristics(s) {
-    if (s.presets.badges) stripBadges();
-    if (s.presets.rightAds) hideSidebarAds();
-    if (s.presets.adSweep) sweepAds(s);
-    if (s.presets.postActions) hideActionBars();
-    if (s.presets.feed) hideFeed();
-  }
-
-  /* The whole feed: the first box above the posts that holds more than a
-   * couple of things — every post, plus the loading skeleton under them.
-   * Hiding only the posts would leave that skeleton in view, and while it is
-   * in view Facebook keeps fetching more posts. */
-  function hideFeed() {
-    /* The main column's posts, not a post open in a dialog. Whether the first
-     * post is itself already hidden by another rule does not matter. */
-    var post = document.querySelector('[role="main"] [aria-posinset]') || document.querySelector('[aria-posinset]');
-    if (!post) return;
-    var node = post;
-    while (node.parentElement && node.parentElement.childElementCount < 3) node = node.parentElement;
-    var feed = node.parentElement;
-    if (!feed || feed === document.body || feed.matches('[role="main"], [role="main"] > *')) return;
-    hide(feed, 'feed');
-  }
-
-  /* From a Sponsored label, find the card it belongs to.
+  /* From an ad label, find the card it belongs to.
    *
-   * Climbing too far hides the whole Stories tray or the Marketplace grid, so
-   * the walk stops at the first ancestor that is card-sized and sits among
-   * siblings — that shape is what a list or grid item looks like — and bails
-   * out on anything that is obviously a whole surface. */
+   * Climbing too far hides a whole tray or grid, so the walk stops at the
+   * first ancestor that is card-sized and sits among siblings — that shape
+   * is what a list or grid item looks like — and bails out on anything that
+   * is obviously a whole surface, or that holds more than one post (the
+   * site's `cardStop`, else its post selector). */
   function cardFor(label) {
     var node = label;
     var best = null;
     var viewportH = window.innerHeight || 800;
+    var stop = site.cardStop || UNITS;
     for (var depth = 0; depth < 12 && node.parentElement; depth++) {
       node = node.parentElement;
       if (node === document.body || node === document.documentElement) break;
       var role = node.getAttribute('role');
       if (role === 'feed' || role === 'main' || role === 'banner' ||
           role === 'complementary' || role === 'navigation') break;
-      if (node.querySelectorAll('div[role="article"], [aria-posinset]').length > 1) break;
+      if (node.querySelectorAll(stop).length > 1) break;
       var r = node.getBoundingClientRect();
       if (r.height > viewportH * 0.85) break;
       best = node;
@@ -503,7 +351,7 @@
   }
 
   /* Judge a label once per settings generation. Labels that are still empty
-   * are not stamped: Facebook often fills the text in a frame later. */
+   * are not stamped: sites often fill the text in a frame later. */
   function firstLook(el, mark) {
     if (el[mark] === generation) return false;
     if (!(el.textContent || '').trim()) return false;
@@ -511,104 +359,62 @@
     return true;
   }
 
-  /* Everything that is not the feed: stories, reels, marketplace, search,
-   * watch, group listings. */
-  function sweepAds(s) {
-    var scope = document.querySelector('div[role="main"]') || document.body;
-    var nodes = scope.querySelectorAll(LABEL_NODES + ',' + LABEL_REFS + ', a');
-    for (var i = 0; i < nodes.length; i++) {
-      var el = nodes[i];
-      /* A verdict is kept per label, but an ad label is looked at again
-       * every scan: Facebook can rebuild the card around the same label. */
-      if (el.__bfxAdGen === generation && !el.__bfxIsAd) continue;
-      if (el.__bfxAdGen !== generation) {
-        var isAd;
-        if (el.tagName === 'A' && isAdSlot(el)) {
-          isAd = true;
-        } else if (el.hasAttribute('aria-labelledby')) {
-          /* A referenced label has no text of its own; judge it once the
-           * text it points at exists. */
-          var text = referencedText(el);
-          if (!text) continue;
-          isAd = AD_LABEL.test(text);
-        } else {
-          if (!(el.textContent || '').trim()) continue;
-          isAd = el.tagName !== 'A' || el.matches(LABEL_NODES) ? looksSponsored(el) : false;
-        }
-        el.__bfxAdGen = generation;
-        el.__bfxIsAd = isAd;
-      }
-      if (!el.__bfxIsAd) continue;
-      /* The per-unit rule owns the feed and picks better containers there. */
-      if (s.presets.sponsored && el.closest('div[role="feed"], div[data-pagelet^="FeedUnit"], [aria-posinset]')) continue;
-      if (el.closest(HIDDEN)) continue;
-      var card = cardFor(el);
-      if (card) hide(card, 'adSweep');
-    }
-  }
+  /* --------------------------------------------------------- heuristics -- */
 
-  function stripBadges() {
-    var banner = document.querySelector('div[role="banner"]');
-    if (banner) {
-      banner.querySelectorAll('span, div').forEach(function (el) {
-        if (el.children.length) return;
-        var t = (el.textContent || '').trim();
-        if (!/^\d{1,3}\+?$/.test(t)) return;
-        var box = el.getBoundingClientRect();
-        if (box.width > 40 || box.height > 40) return;   // a real number, not a badge
-        /* The red circle belongs to a screen-reader-hidden copy of the
-         * button; hiding only the digits leaves an empty red dot behind. */
-        var badge = el.closest('[aria-hidden="true"][role="button"]');
-        var b = badge && badge.getBoundingClientRect();
-        hide(b && b.width <= 40 && b.height <= 40 ? badge : el, 'badges');
+  /* Shared by every site; a pack adds its own (site.heuristics). */
+  var CORE = {
+    /* Section headers and "why am I seeing this" strings that identify a whole
+     * class of unit. Matched against the unit's header only. */
+    feedText: function (unit, rule, ctx) {
+      var head = ctx.head();
+      return phrasesOf(rule).some(function (p) {
+        return head.indexOf(p) !== -1;
       });
     }
-    // "(3) Facebook" in the tab title pulls just as hard as the red dot.
-    var clean = document.title.replace(/^\(\d+\+?\)\s*/, '');
-    if (clean !== document.title) document.title = clean;
+  };
+
+  function heuristic(kind) {
+    return (site.heuristics && site.heuristics[kind]) || CORE[kind] || null;
   }
 
-  /* The Like / Comment / Share row is the smallest box around a post's Like
-   * button that also holds a Comment button. A box with a second Like in it
-   * has climbed past the row into the comments, which have Likes of their
-   * own, so the walk stops there. Undecided rows (Comment not rendered yet)
-   * are left unstamped and looked at again. */
-  /* Facebook marks the buttons themselves, in every language; the English
-   * labels are the fallback. The marker sits inside the labelled button, so a
-   * labelled button only counts when it has no marker — otherwise every Like
-   * would be counted twice. */
-  var LIKE = '[data-ad-rendering-role="like_button"], ' +
-    '[aria-label="Like"]:not(:has([data-ad-rendering-role="like_button"]))';
-  var COMMENT = '[data-ad-rendering-role="comment_button"], [aria-label="Leave a comment"], [aria-label="Comment"]';
+  /* Everything a site's rule pack may use. Pack heuristics are called as
+   * fn(unit, rule.js, ctx, api), its global rules as fn(api). */
+  var api = {
+    HIDDEN: HIDDEN,
+    hide: hide,
+    state: function () { return state; },
+    generation: function () { return generation; },
+    units: function () { return UNITS; },
+    firstLook: firstLook,
+    isVisible: isVisible,
+    visibleText: visibleText,
+    readableText: readableText,
+    headText: headText,
+    looksSponsored: looksSponsored,
+    referencedText: referencedText,
+    cardFor: cardFor,
+    climbTo: climbTo,
+    stripTitleCount: stripTitleCount,
+    feedText: function (unit, rule, ctx) { return CORE.feedText(unit, rule, ctx); },
+    AD_WORD: AD_WORD,
+    AD_LABEL: AD_LABEL,
+    INVISIBLE_CHARS: INVISIBLE_CHARS
+  };
 
-  function hideActionBars() {
-    document.querySelectorAll(LIKE).forEach(function (like) {
-      if (like.__bfxBarGen === generation || like.closest(HIDDEN)) return;
-      var node = like.parentElement;
-      for (var depth = 0; node && depth < 10; depth++, node = node.parentElement) {
-        /* Past the row, or about to take the whole post with it. */
-        if (node === document.body || node.matches(UNIT_SELECTOR) ||
-            node.querySelectorAll(LIKE).length > 1) {
-          like.__bfxBarGen = generation;
-          return;
-        }
-        if (node.querySelector(COMMENT)) {
-          like.__bfxBarGen = generation;
-          hide(node, 'postActions');
-          return;
-        }
-      }
+  /* Global rules work on a container other than a feed unit, so they are
+   * not part of the per-unit loop — but they still need the observer
+   * running. Keyed by preset id. */
+  function globalIds() {
+    return Object.keys(site.globals || {});
+  }
+
+  function runGlobalHeuristics(s) {
+    globalIds().forEach(function (id) {
+      if (!s.presets[id]) return;
+      try {
+        site.globals[id](api);
+      } catch (e) { /* one bad rule must not stop the others */ }
     });
-  }
-
-  function hideSidebarAds() {
-    document.querySelectorAll('div[role="complementary"] h3, div[role="complementary"] span[dir="auto"]')
-      .forEach(function (el) {
-        if (!firstLook(el, '__bfxSideGen')) return;
-        if (!looksSponsored(el)) return;
-        var section = climbTo(el, el.closest('div[role="complementary"]'), 10);
-        hide(section, 'rightAds');
-      });
   }
 
   /* The term that matched, for the placeholder, or null. */
@@ -665,9 +471,9 @@
   /* How many frames a unit may stay unsure before its verdict stands. */
   var MAX_TRIES = 40;
 
-  /* Elements that changed since the last scan. Facebook renders a post in
-   * pieces and empties posts that scroll away, then refills them, so a
-   * verdict only holds until the post's content changes. */
+  /* Elements that changed since the last scan. Sites render a post in
+   * pieces and empty posts that scroll away, then refill them, so a verdict
+   * only holds until the post's content changes. */
   var dirty = new Set();
   /* A label attached to an existing element changes no text, so these are
    * looked at again regardless. */
@@ -680,12 +486,12 @@
     schedule();
   }
 
-  /* Facebook makes thousands of changes a frame while the feed renders, most
-   * of them inside a handful of posts, so the post an element belongs to is
-   * remembered on the element, and each changed post's text is measured
-   * once per frame rather than once per change. */
+  /* A feed renders thousands of changes a frame, most of them inside a
+   * handful of posts, so the post an element belongs to is remembered on the
+   * element, and each changed post's text is measured once per frame rather
+   * than once per change. */
   function unitOf(el) {
-    if (el.__bfxUnit === undefined) el.__bfxUnit = el.closest(UNIT_SELECTOR);
+    if (el.__bfxUnit === undefined) el.__bfxUnit = el.closest(UNITS);
     return el.__bfxUnit;
   }
 
@@ -706,6 +512,15 @@
     relabelled.clear();
   }
 
+  function skipUnit(unit) {
+    /* Units can nest. Once the outer one is hidden or clicked open, the
+     * inner ones belong to it. */
+    return !!(unit.closest(HIDDEN + ', [' + REVEALED + ']') ||
+      /* A post opened in a dialog is one you asked to see. */
+      unit.closest('[role="dialog"]') ||
+      (site.skip && site.skip(unit)));
+  }
+
   function scan() {
     pending = false;
     if (!state || !state.enabled) {
@@ -716,18 +531,11 @@
 
     if (jsRules.length || keywords.length) {
       invalidateChanged();
-      var units = document.querySelectorAll(UNIT_SELECTOR);
+      var units = document.querySelectorAll(UNITS);
       for (var i = 0; i < units.length; i++) {
         var unit = units[i];
         if (unit.__bfxGen === generation) continue;   // already judged this unit
-        /* Facebook nests these containers. Once the outer one is hidden or
-         * clicked open, the inner ones belong to it. */
-        if (unit.closest(HIDDEN + ', [' + REVEALED + ']') ||
-            /* A comment or a quoted share: the post around it is judged with
-             * everything it contains, so judging it again only adds misfires. */
-            (unit.parentElement && unit.parentElement.closest('[role="article"]')) ||
-            /* A post opened in a dialog is one you asked to see. */
-            unit.closest('[role="dialog"]')) {
+        if (skipUnit(unit)) {
           unit.__bfxGen = generation;
           continue;
         }
@@ -740,10 +548,10 @@
         var hidden = false;
         for (var j = 0; j < jsRules.length; j++) {
           var rule = jsRules[j];
-          var fn = HEURISTICS[rule.js.kind];
+          var fn = heuristic(rule.js.kind);
           if (!fn) continue;
           try {
-            if (fn(unit, rule.js, ctx)) {
+            if (fn(unit, rule.js, ctx, api)) {
               hide(unit, rule.id, SILENT[rule.id] ? null : rule.label);
               hidden = true;
               break;
@@ -768,10 +576,7 @@
       relabelled.clear();
     }
 
-    try {
-      runGlobalHeuristics(state);
-    } catch (e) { /* ignore */ }
-
+    runGlobalHeuristics(state);
     reassert();
     ensureStyle();
   }
@@ -803,17 +608,17 @@
   function needsObserver(s) {
     if (!s.enabled) return false;
     if (jsRules.length || keywords.length) return true;
-    return GLOBAL_JS.some(function (id) { return s.presets[id]; });
+    return globalIds().some(function (id) { return s.presets[id]; });
   }
 
   /* ------------------------------------------------------------- stats -- */
 
   /* What each active rule matches on this page, for the popup. A rule that
    * matches nothing where you can still see its target is the usual sign that
-   * Facebook changed underneath it. Effect-only rules (style, no css or js)
+   * the site changed underneath it. Effect-only rules (style, no css or js)
    * have nothing to count and are left out. */
   function stats() {
-    var out = { presets: {}, custom: {}, keyword: 0 };
+    var out = { site: site ? site.id : null, presets: {}, custom: {}, keyword: 0 };
     if (!state || !state.enabled) return out;
 
     var tagged = {};
@@ -822,7 +627,7 @@
       (tagged[why] = tagged[why] || []).push(el);
     });
 
-    PRESETS.forEach(function (rule) {
+    site.presets.forEach(function (rule) {
       if (!state.presets[rule.id] || (!rule.css && !rule.js)) return;
       var seen = new Set(tagged[rule.id] || []);
       var broken = [];
@@ -856,24 +661,27 @@
 
   /* ------------------------------------------------------------ routes -- */
 
-  /* With the Reels rule on, a reel opened from a link, a notification or the
-   * address bar sends you back to the feed instead of playing. */
-  var REEL_PATH = /^\/reels?(\/|$)/;
-
-  function redirectFor(s, loc) {
-    if (!s || !s.enabled || !s.presets.reels) return null;
-    if (!/(^|\.)facebook\.com$/.test(loc.hostname)) return null;
-    return REEL_PATH.test(loc.pathname) ? '/' : null;
+  /* Pages a site's rules block outright rather than trim (Facebook's reels,
+   * for one): the path to send the tab to instead, or null. Takes the full
+   * settings and picks the site from the location. */
+  function redirectFor(full, loc) {
+    var pack = SITES.get(SITES.forHost(loc.hostname));
+    if (!full || !pack || !pack.redirect) return null;
+    var s = STORE.view(full, pack.id);
+    return s.enabled ? pack.redirect(s, loc) : null;
   }
 
   /* --------------------------------------------------------------- api -- */
 
+  /* `next` is the full settings; the page runs on its own site's view. */
   function apply(next) {
-    state = next;
+    if (!site) return;
+    full = next;
+    state = STORE.view(next, site.id);
     generation++;
 
     jsRules = state.enabled
-      ? PRESETS.filter(function (r) { return r.js && state.presets[r.id] && HEURISTICS[r.js.kind]; })
+      ? site.presets.filter(function (r) { return r.js && state.presets[r.id] && heuristic(r.js.kind); })
       : [];
     keywords = state.enabled && state.keywords.enabled ? compileKeywords(state.keywords.terms) : [];
 
@@ -894,10 +702,11 @@
   }
 
   function refresh() {
-    if (state) apply(state);
+    if (full) apply(full);
   }
 
   root.BFX_ENGINE = {
+    site: site,
     apply: apply,
     refresh: refresh,
     scan: schedule,
