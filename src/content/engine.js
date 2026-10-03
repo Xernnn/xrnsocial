@@ -56,9 +56,32 @@
    * than the plain hidden rule, so it wins without fighting over order. The
    * colours are Facebook's variables, with neutral fallbacks elsewhere. */
   var PLACEHOLDER = HIDDEN + '[' + NOTE + ']';
+  /* Sites set display with !important of their own (Twitch's layout
+   * components), and a page rule of the same specificity that loads later
+   * wins. Every hide rule therefore carries one id's worth of specificity
+   * that never changes what it matches; the "show" bar carries two, so it
+   * still beats the rule that hid its post. */
+  var BOOST = ':not(#bfx-z)';
+  var BOOST2 = BOOST + ':not(#bfx-y)';
+
+  /* A selector with a top-level comma is a list: boost the whole list. */
+  function boosted(sel) {
+    var depth = 0;
+    var quote = '';
+    for (var i = 0; i < sel.length; i++) {
+      var c = sel.charAt(i);
+      if (quote) { if (c === '\\') i++; else if (c === quote) quote = ''; continue; }
+      if (c === '"' || c === "'") quote = c;
+      else if (c === '(' || c === '[') depth++;
+      else if (c === ')' || c === ']') depth--;
+      else if (c === ',' && depth === 0) return ':is(' + sel + ')' + BOOST;
+    }
+    return sel + BOOST;
+  }
+
   var PLACEHOLDER_CSS = [
-    PLACEHOLDER + '{display:block !important;cursor:pointer}',
-    PLACEHOLDER + ' > *{display:none !important}',
+    PLACEHOLDER + BOOST2 + '{display:block !important;cursor:pointer}',
+    PLACEHOLDER + BOOST2 + ' > *{display:none !important}',
     PLACEHOLDER + '::before{content:attr(' + NOTE + ');display:block;' +
       'margin:0 0 12px;padding:9px 14px;border-radius:8px;' +
       'background:var(--card-background,#f0f2f5);color:var(--secondary-text,#65676b);' +
@@ -68,10 +91,10 @@
 
   function buildCss(s) {
     var out = [
-      HIDDEN + '{display:none !important}',
+      HIDDEN + BOOST + '{display:none !important}',
       /* Feeds that divide posts with <hr> (Reddit) would stack the lines of
        * the posts around one that is gone. */
-      HIDDEN + ':not([' + NOTE + ']) + hr{display:none !important}'
+      HIDDEN + ':not([' + NOTE + ']) + hr' + BOOST + '{display:none !important}'
     ];
     if (!s.enabled) return out.join('\n');
     if (s.placeholders) out.push(PLACEHOLDER_CSS);
@@ -96,7 +119,7 @@
     /* One selector per line: an invalid selector kills only its own rule,
      * not the whole sheet. Sites change; rules will break individually. */
     selectors.forEach(function (sel) {
-      out.push(sel + '{display:none !important}');
+      out.push(boosted(sel) + '{display:none !important}');
     });
 
     return out.join('\n');
@@ -555,7 +578,13 @@
 
   function onMutations(records) {
     for (var i = 0; i < records.length; i++) {
-      (records[i].type === 'attributes' ? relabelled : dirty).add(records[i].target);
+      var r = records[i];
+      if (r.type === 'attributes') relabelled.add(r.target);
+      /* Text filled into a node that was already there ("Promoted" put
+       * into a post's empty time slot) changes no children; it belongs to
+       * the element holding it. */
+      else if (r.type === 'characterData') { if (r.target.parentElement) dirty.add(r.target.parentElement); }
+      else dirty.add(r.target);
     }
     schedule();
   }
@@ -565,8 +594,11 @@
    * element, and each changed post's text is measured once per frame rather
    * than once per change. */
   function unitOf(el) {
-    if (el.__bfxUnit === undefined) el.__bfxUnit = el.closest(UNITS);
-    return el.__bfxUnit;
+    if (el.__bfxUnit !== undefined) return el.__bfxUnit;
+    var unit = el.closest(UNITS);
+    /* A detached element has no post yet; it may be put into one later. */
+    if (el.isConnected) el.__bfxUnit = unit;
+    return unit;
   }
 
   function invalidateChanged() {
@@ -675,6 +707,7 @@
     observer.observe(document.documentElement, {
       childList: true,
       subtree: true,
+      characterData: true,
       attributes: true,
       attributeFilter: ['aria-labelledby']
     });

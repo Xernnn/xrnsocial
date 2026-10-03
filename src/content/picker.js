@@ -39,11 +39,14 @@
    * bfx-hidden would match everything already hidden, not the thing picked.
    * A site styled with utility classes (Reddit's block, relative, px-md)
    * turns classes off in its pack: they say how a thing looks, not what it
-   * is. */
+   * is. A pack can also pass a pattern of the classes it trusts. */
   function stableClasses(el) {
     var s = site();
-    if (s && s.picker && s.picker.classes === false) return [];
+    var rule = s && s.picker && s.picker.classes;
+    if (rule === false) return [];
     return Array.prototype.filter.call(el.classList, function (c) {
+      /* A pack may instead say which classes are its own (Twitch's BEM). */
+      if (rule && rule.test && !rule.test(c)) return false;
       return !GENERATED_CLASS.test(c) && c.indexOf('bfx-') !== 0;
     });
   }
@@ -68,7 +71,13 @@
     if (attr('data-focus-target')) out.push('[data-focus-target=' + cssString(attr('data-focus-target')) + ']');
     if (attr('data-pagelet')) out.push('[data-pagelet=' + cssString(attr('data-pagelet')) + ']');
     if (attr('data-testid')) out.push('[data-testid=' + cssString(attr('data-testid')) + ']');
-    if (attr('aria-label')) {
+    /* Hook attributes a pack vouches for (Twitch's data-a-target). */
+    var own = (site() && site().picker && site().picker.attrs) || [];
+    own.forEach(function (name) {
+      if (attr(name)) out.push('[' + name + '=' + cssString(attr(name)) + ']');
+    });
+    /* A long label is content ("Sent at 16:53, sam: hello"), not a name. */
+    if (attr('aria-label') && attr('aria-label').length <= 40 && !/\d{1,2}:\d{2}/.test(attr('aria-label'))) {
       var label = '[aria-label=' + cssString(attr('aria-label')) + ']';
       if (attr('role')) out.push(tag + '[role=' + cssString(attr('role')) + ']' + label);
       out.push(tag + label);

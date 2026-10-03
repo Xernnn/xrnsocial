@@ -1,0 +1,63 @@
+<!doctype html>
+<!-- twitch.tv (signed in) as it was built in October 2026, cut down to the
+     parts the Twitch pack keys on: the front page and a channel's page in
+     one document. Hooks copied from the live site (data-a-target,
+     data-test-selector, BEM classes); every name and line is made up. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>(2) Twitch</title></head>
+<body style="margin:0;font:14px sans-serif">
+<nav data-a-target="top-nav-container" style="display:flex;height:50px">
+  <a data-a-target="home-link" href="/">Twitch</a>
+  <a data-a-target="following-link" href="/directory/following">Following</a>
+  <div data-test-selector="test_selector_prime_tracking_button_wrapper" id="prime"><button data-a-target="prime-offers-icon" aria-label="Prime offers">crown</button></div>
+  <button data-a-target="top-nav-get-bits-button" id="bits">Bits: 29% off</button>
+  <button aria-label="Open Notifications">bell<div data-test-selector="onsite-notifications__badge" id="badge">2</div></button>
+</nav>
+<div style="display:flex">
+  <div data-test-selector="side-nav" id="side-nav" style="display:block;width:240px">
+    <nav aria-label="Left Navigation">
+      <div role="group" aria-label="Followed Channels" id="grp-followed">
+        <a data-test-selector="followed-channel" class="side-nav-card__link" href="/alice_tv" id="side-alice"><p class="side-nav-card__title">alice_tv</p><p>Chess</p></a>
+      </div>
+      <div role="group" aria-label="Live Channels" id="grp-recommended">
+        <a data-test-selector="recommended-channel" class="side-nav-card__link" href="/bob_tv" id="side-bob"><p>bob_tv</p><p>Racing</p></a>
+      </div>
+      <div role="group" aria-label="Viewers Also Watch" id="grp-similar">
+        <a data-test-selector="similarity-channel" class="side-nav-card__link" href="/carl_tv" id="side-carl"><p>carl_tv</p><p>Racing</p></a>
+      </div>
+    </nav>
+  </div>
+
+  <main style="display:block;width:900px">
+    <!-- Front page -->
+    <div data-a-target="front-page-carousel" id="carousel">
+      <div data-a-target="frontpage-headliner-layout"><div data-a-target="frontpage-headliner" aria-label="Advertisement" id="headliner"><button aria-label="Leave feedback for this Ad"><p>Ad</p></button>A soft drink</div></div>
+      <div data-a-target="featured-item" id="featured">A featured stream</div>
+    </div>
+    <div id="shelf">
+      <article id="card-dana" data-h="200"><a data-a-target="preview-card-image-link" href="/dana_tv"><img alt=""></a><a data-a-target="preview-card-title-link" href="/dana_tv">Speedrunning tonight</a><a data-a-target="preview-card-channel-link" href="/dana_tv">dana_tv</a></article>
+      <article id="card-kw" data-h="200"><a data-a-target="preview-card-image-link" href="/erin_tv"><img alt=""></a><a data-a-target="preview-card-title-link" href="/erin_tv">Free CRYPTO giveaway</a><a data-a-target="preview-card-channel-link" href="/erin_tv">erin_tv</a></article>
+    </div>
+
+    <!-- A channel's page -->
+    <div data-a-target="video-player" id="player">
+      <div data-test-selector="sda-wrapper" id="sda"><div data-test-selector="sda-frame">display ad</div></div>
+    </div>
+    <section aria-label="Stream Information">
+      <p data-a-target="stream-title">Late night chess</p>
+      <button data-a-target="follow-button" id="follow">Follow</button>
+      <button data-a-target="gift-button" id="gift">Gift a sub</button>
+      <button data-a-target="subscribe-button" id="sub">Subscribe</button>
+    </section>
+    <div data-a-target="about-panel" id="about">About alice_tv</div>
+  </main>
+
+  <div class="channel-root__right-column channel-root__right-column--expanded" id="chat-column" style="display:block;width:340px">
+    <section data-test-selector="chat-room-component-layout" class="chat-room">
+      <div class="chat-line__message" data-a-target="chat-line-message" id="line"><span data-a-target="chat-badge" class="chat-badge" id="chat-badge"><img alt="Subscriber"></span><span data-a-target="chat-message-username">fan_one</span>: <span data-a-target="chat-message-text">gg</span></div>
+      <div data-test-selector="community-points-summary" id="points">1,200 points</div>
+    </section>
+  </div>
+</div>
+</body>
+</html>

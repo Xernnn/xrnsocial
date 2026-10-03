@@ -16,7 +16,8 @@ Nothing leaves your browser: no network requests, no analytics, no accounts.
 | X | done — checked against the live site, October 2026 |
 | LinkedIn | done — checked against the live site, October 2026 |
 | Instagram | done — checked against the live site, October 2026 |
-| TikTok, Twitch | being added, one at a time |
+| Twitch | done — checked against the live site, October 2026 |
+| TikTok | not yet: needs a signed-in session to map |
 
 Each site has its own switches and picked rules, and can be switched off on
 its own from the popup. The pause switch, the word list and the "show" bars
@@ -68,6 +69,11 @@ language: they are the only posts that don't say when they were posted.
 **Posts from accounts you don't follow** is off by default — once you have
 seen your follows, Instagram fills the feed with them.
 
+On Twitch, 14 switches. Four are on by default: display ads, the Prime and
+Bits offers, recommended channels in the side nav, and the notification
+badge. Word blocks work on stream titles, games and tags in the directory,
+on the front page and in the side nav.
+
 With a supported site's tab open, each active rule shows how much it matched on that
 page: **3 here**, or **none here** when nothing matched. Only things you would
 have seen count — not the empty slots a site keeps on every post for content
@@ -118,7 +124,9 @@ with the community name) means that part of every post. On X it means
 **posts from that account** — quotes of that account's posts stay. On
 LinkedIn it means **posts from that person or page**, keyed on the author's
 picture in the header, never on whoever reacted. On Instagram it means
-**posts from that account** — posts that merely mention it stay.
+**posts from that account** — posts that merely mention it stay. On Twitch,
+picking a stream card or a side nav entry means **that channel**, wherever
+it is listed.
 
 `Alt+Shift+B` pauses and resumes every rule at once; the toolbar icon shows
 **off** while paused.
@@ -283,6 +291,10 @@ misfire on what someone wrote. Corrections go in `src/sites/facebook.js`.
 - **Instagram's button row and counts** key on their position (the first and
   second `section` of a post). If Instagram reorders them, those two switches
   will hide the wrong row; the popup's count will look off.
+- **Twitch's video ads can't be hidden.** They are part of the stream itself.
+  The display ad beside the player during an ad break and the front page's
+  ad are hidden. Hype trains, predictions and pinned chat highlights did not
+  come up during testing and have no switches yet.
 - **Firefox** would need the background section changed from `service_worker`
   to `scripts`; everything else is compatible.
 
@@ -296,6 +308,7 @@ src/sites/reddit.js         Reddit's
 src/sites/x.js              X's
 src/sites/linkedin.js       LinkedIn's
 src/sites/instagram.js      Instagram's
+src/sites/twitch.js         Twitch's
 src/common/storage.js       one key in chrome.storage.local, shared everywhere
 src/content/engine.js       stylesheet builder + observer, driven by the site's pack
 src/content/picker.js       overlay, and the selector generator
@@ -316,8 +329,8 @@ the elements they were generated from.
 
 `npm run test:browser` loads the unpacked extension into Chrome for Testing
 and serves fixture pages at `https://www.facebook.com/`,
-`https://www.reddit.com/`, `https://x.com/`, `https://www.linkedin.com/` and
-`https://www.instagram.com/`, so the content scripts
+`https://www.reddit.com/`, `https://x.com/`, `https://www.linkedin.com/`,
+`https://www.instagram.com/` and `https://www.twitch.tv/`, so the content scripts
 run exactly as they do on the real site. It checks what jsdom cannot: that
 Chrome accepts every selector (jsdom is more lenient about `:has()`), the real
 CSS cascade, settings reaching open tabs, reel redirects, the popup, and
