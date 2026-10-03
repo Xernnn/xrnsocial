@@ -48,7 +48,7 @@ function findChrome() {
 /* The preset list, read the same way the extension reads it. */
 function loadPresets(siteId) {
   const sandbox = { self: {} };
-  for (const file of ['src/common/sites.js', 'src/sites/facebook.js', 'src/sites/reddit.js']) {
+  for (const file of ['src/common/sites.js', 'src/sites/facebook.js', 'src/sites/reddit.js', 'src/sites/x.js']) {
     vm.runInNewContext(fs.readFileSync(path.join(root, file), 'utf8'), sandbox);
   }
   return sandbox.self.BFX_SITES.get(siteId || 'facebook').presets;
@@ -94,6 +94,7 @@ async function until(fn, timeout = 3000) {
      * from the Reddit fixture; nothing else is fetched. */
     let served = fs.readFileSync(path.join(fixtures, 'feed.html'), 'utf8');
     const redditDoc = fs.readFileSync(path.join(fixtures, 'reddit.html'), 'utf8');
+    const xDoc = fs.readFileSync(path.join(fixtures, 'x.html'), 'utf8');
     const page = await browser.newPage();
     await page.setRequestInterception(true);
     page.on('request', req => {
@@ -102,6 +103,8 @@ async function until(fn, timeout = 3000) {
         req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: served });
       } else if (/(^|\.)reddit\.com$/.test(url.hostname) && req.resourceType() === 'document') {
         req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: redditDoc });
+      } else if (/(^|\.)x\.com$/.test(url.hostname) && req.resourceType() === 'document') {
+        req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: xDoc });
       } else if (url.protocol === 'http:' || url.protocol === 'https:') {
         req.abort();
       } else {
@@ -396,6 +399,68 @@ async function until(fn, timeout = 3000) {
       });
       ok(`reddit ${id}: hides ${what}, keeps the rest, and gives it back when off`, hid && keeps && back);
     }
+    await resetState();
+
+    /* ------------------------------------------------------------------- x -- */
+    console.log('\nx.com in real Chrome');
+    await resetState();
+    await page.bringToFront();
+    await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#bfx-style');
+    const xPresets = loadPresets('x');
+    const xIds = xPresets.map(r => r.id);
+    ok('every X selector parses in Chrome', (await page.evaluate(list => list.filter(sel => {
+      try { document.querySelectorAll(sel); return false; } catch (e) { return true; }
+    }), xPresets.flatMap(r => r.css || []))).length === 0);
+    ok('ads go, by pixels and by label', await until(() => isHidden('cell-ad')) && await until(() => isHidden('cell-adlabel')));
+    ok('who to follow goes, in the timeline and the right column', await isHidden('cell-wtf-head') && await isHidden('cell-wtf-user') &&
+      await isHidden('cell-wtf-more') && await isHidden('blk-wtf'));
+    ok('the promoted trend and the Premium card go', await isHidden('trend-promo') && await isHidden('blk-premium') && await isHidden('nav-premium'));
+    ok('ordinary posts, trends and the rest of the column stay', !(await isHidden('cell-plain')) && !(await isHidden('trend-plain')) &&
+      !(await isHidden('blk-search')) && !(await isHidden('cell-quote')));
+    ok('the unread badge goes', await isHidden('badge'));
+    ok('the timeline closes up around a hidden ad: no gap where it was', await page.evaluate(() => {
+      const a = document.getElementById('cell-plain').getBoundingClientRect();
+      const b = document.getElementById('cell-repost').getBoundingClientRect();
+      return Math.abs(b.top - a.bottom) < 2;
+    }));
+
+    const xOnly = list => setState(`s => { const p = s.sites.x.presets; ${JSON.stringify(xIds)}.forEach(k => { p[k] = false; }); ${list.map(id => `p.${id} = true;`).join(' ')} }`);
+    const xCases = [
+      ['reposts', 'reposts, not pinned posts', ['cell-repost'], ['cell-pinned', 'cell-plain']],
+      ['videoPosts', 'video posts, whole', ['cell-video'], ['cell-plain']],
+      ['postActions', 'the button row', ['bar-plain'], ['text-plain']],
+      ['counts', 'the counts, not the buttons', ['count-reply'], ['bar-plain']],
+      ['media', 'the picture box, not the text', ['media-box'], ['text-plain', 'bar-plain']],
+      ['rightSidebar', 'the right column', ['blk-trends', 'blk-search'], ['timeline']],
+      ['trends', 'the trends block', ['blk-trends'], ['blk-wtf', 'timeline']],
+      ['news', "Today's News", ['blk-news'], ['blk-trends']],
+      ['sidebarSearch', 'the column search box', ['blk-search'], ['blk-trends']],
+      ['navExtras', 'the extra menu items', ['nav-grok', 'nav-history', 'nav-studio', 'nav-premium'], ['nav-profile', 'nav-notif']],
+      ['grok', 'Grok everywhere', ['grok-btn', 'grok-drawer', 'nav-grok', 'grok-img'], ['bar-plain']],
+      ['chatDrawer', 'the chat drawer', ['chat-drawer'], ['grok-drawer']],
+      ['newPostsPill', 'the new posts bubble', ['pill'], ['timeline']],
+      ['composer', 'the post box', ['composer-block'], ['timeline', 'tab-foryou']]
+    ];
+    for (const [id, what, hide, keep] of xCases) {
+      await xOnly([id]);
+      const hid = await until(async () => {
+        for (const g of hide) if (!(await isHidden(g))) return false;
+        return true;
+      });
+      let keeps = true;
+      for (const k of keep) if (await isHidden(k)) keeps = false;
+      await xOnly([]);
+      const back = await until(async () => {
+        for (const g of hide) if (await isHidden(g)) return false;
+        return true;
+      });
+      ok(`x ${id}: hides ${what}, keeps the rest, and gives it back when off`, hid && keeps && back);
+    }
+    await xOnly(['verifiedReplies']);
+    await page.goto('https://x.com/alice/status/111', { waitUntil: 'domcontentloaded' });
+    ok('x verifiedReplies: under an opened post, the verified reply goes and the post stays',
+      await until(() => isHidden('cell-video')) && !(await isHidden('cell-plain')));
     await resetState();
 
     /* ----------------------------------------------------------- snapshots -- */

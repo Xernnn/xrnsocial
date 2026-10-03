@@ -1,0 +1,145 @@
+<!doctype html>
+<!-- x.com (signed in) as it was built in October 2026, cut down to the parts
+     the X pack keys on. Structure copied from the live site (data-testids,
+     nesting, icon paths); every name and line of text is made up. The first
+     post (/alice/status/111) doubles as the opened post when the page is
+     loaded at that path. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>(3) Home / X</title></head>
+<body style="margin:0;font:15px sans-serif">
+<div style="display:flex">
+  <header role="banner" style="display:block;width:260px">
+    <nav role="navigation" aria-label="Primary">
+      <a href="/home" data-testid="AppTabBar_Home_Link" aria-label="Home">Home</a>
+      <a href="/explore" data-testid="AppTabBar_Explore_Link" aria-label="Search and explore">Explore</a>
+      <a href="/notifications" data-testid="AppTabBar_Notifications_Link" aria-label="Notifications" id="nav-notif">Notifications<div aria-label="3 unread items" id="badge">3</div></a>
+      <a href="/i/chat" data-testid="AppTabBar_DirectMessage_Link" aria-label="Direct Messages">Messages</a>
+      <a href="/i/grok" aria-label="Grok" id="nav-grok">Grok</a>
+      <a href="/i/history" aria-label="History" id="nav-history">History</a>
+      <a href="/i/jf/creators/studio" aria-label="Creator Studio" id="nav-studio">Creator Studio</a>
+      <a href="/i/premium_sign_up" data-testid="premium-signup-tab" aria-label="Premium" id="nav-premium">Premium</a>
+      <a href="/someone" data-testid="AppTabBar_Profile_Link" aria-label="Profile" id="nav-profile">Profile</a>
+    </nav>
+    <a href="/compose/post" data-testid="SideNav_NewTweet_Button">Post</a>
+  </header>
+
+  <main role="main" style="display:block;width:600px">
+    <div data-testid="primaryColumn">
+      <div id="pc-inner">
+        <div role="tablist"><a role="tab" aria-selected="true" href="/home" id="tab-foryou">For you</a><a role="tab" aria-selected="false" href="/home" id="tab-following">Following</a></div>
+        <div id="composer-block"><div><div><div data-testid="tweetTextarea_0" role="textbox" aria-label="Post text">What's happening?</div><button data-testid="grokImgGen" id="grok-img">img</button></div></div></div>
+        <div role="status"><button aria-label="New posts are available." id="pill"><div><div data-testid="pillLabel">New posts</div></div></button></div>
+        <section role="region" aria-labelledby="tl" id="timeline">
+          <h1 id="tl">Your Home Timeline</h1>
+          <div style="position:relative">
+
+            <!-- An ordinary post, with a picture, counts and the Grok button. -->
+            <div data-testid="cellInnerDiv" id="cell-plain" data-h="300"><div><div>
+              <article data-testid="tweet" role="article" id="art-plain"><div id="body-plain">
+                <div data-testid="User-Name"><a href="/alice">Alice</a> <a href="/alice">@alice</a> · <a href="/alice/status/111"><time datetime="2026-10-03">3h</time></a></div>
+                <button aria-label="Grok actions" id="grok-btn"><div><svg><g><path d="M12.745 20.54l10.97-8.19c.539-.4 1.307-.244 1.564.38z"></path></g></svg></div></button>
+                <div data-testid="tweetText" id="text-plain">A walk in the park this morning</div>
+                <div id="media-box"><div><div data-testid="tweetPhoto" id="photo" style="height:200px">picture</div></div></div>
+                <div role="group" aria-label="2 replies, 5 likes" id="bar-plain">
+                  <button data-testid="reply"><span data-testid="app-text-transition-container" id="count-reply">2</span></button>
+                  <button data-testid="retweet"><svg><path d="M4.5 3.88l4.432 4.14-1.364 1.46z"></path></svg></button>
+                  <button data-testid="like"><span data-testid="app-text-transition-container">5</span></button>
+                  <a href="/alice/status/111/analytics"><span data-testid="app-text-transition-container">900</span></a>
+                  <button data-testid="bookmark"></button>
+                </div>
+              </div></article>
+            </div></div></div>
+
+            <!-- An ad: impression pixels around the post. -->
+            <div data-testid="cellInnerDiv" id="cell-ad" data-h="300"><div><div>
+              <div data-testid="placementTracking">
+                <div data-testid="top-impression-pixel"></div><div data-testid="right-impression-pixel"></div><div data-testid="bottom-impression-pixel"></div><div data-testid="left-impression-pixel"></div>
+                <article data-testid="tweet" role="article"><div>
+                  <div data-testid="User-Name"><a href="/brand">Brand</a> <a href="/brand">@brand</a></div><div><div><span>Ad</span></div></div>
+                  <div data-testid="tweetText">Buy our router</div>
+                  <a href="https://example.com/router?utm_medium=paid&amp;twclid=2abc">example.com</a>
+                </div></article>
+              </div>
+            </div></div></div>
+
+            <!-- An ad whose pixels are missing: only the label says so. -->
+            <div data-testid="cellInnerDiv" id="cell-adlabel" data-h="200"><div><div>
+              <article data-testid="tweet" role="article"><div>
+                <div data-testid="User-Name"><a href="/shop">Shop</a></div><div><div><span>Ad</span></div></div>
+                <div data-testid="tweetText">Sale ends soon</div>
+              </div></article>
+            </div></div></div>
+
+            <!-- A repost, and a pinned post (another kind of context line). -->
+            <div data-testid="cellInnerDiv" id="cell-repost" data-h="200"><div><div>
+              <article data-testid="tweet" role="article"><div>
+                <div><div><svg><g><path d="M4.75 3.79l4.603 4.3-1.706 1.82L6 8.38v7.37c0 .97z"></path></g></svg></div><div><a href="/bob"><span data-testid="socialContext">Bob reposted</span></a></div></div>
+                <div data-testid="User-Name"><a href="/dana">Dana</a></div>
+                <div data-testid="tweetText">Old news</div>
+              </div></article>
+            </div></div></div>
+            <div data-testid="cellInnerDiv" id="cell-pinned" data-h="200"><div><div>
+              <article data-testid="tweet" role="article"><div>
+                <div><div><svg><g><path d="M7 4.5C7 3.12 8.12 2 9.5 2h5z"></path></g></svg></div><div><span data-testid="socialContext">Pinned</span></div></div>
+                <div data-testid="User-Name"><a href="/erin">Erin</a></div>
+                <div data-testid="tweetText">About me</div>
+              </div></article>
+            </div></div></div>
+
+            <!-- A video post from a verified account (a verified reply when
+                 the page is opened at /alice/status/111). -->
+            <div data-testid="cellInnerDiv" id="cell-video" data-h="300"><div><div>
+              <article data-testid="tweet" role="article"><div>
+                <div data-testid="User-Name"><a href="/frank">Frank</a><svg data-testid="icon-verified"></svg></div>
+                <div data-testid="tweetText">Watch this</div>
+                <div><div data-testid="tweetPhoto"><div data-testid="placementTracking"><div data-testid="videoPlayer" style="height:200px"><video id="video"></video></div></div></div></div>
+              </div></article>
+            </div></div></div>
+
+            <!-- A quote: the post is Carol's, the quoted one Alice's. -->
+            <div data-testid="cellInnerDiv" id="cell-quote" data-h="300"><div><div>
+              <article data-testid="tweet" role="article"><div>
+                <div data-testid="User-Name"><a href="/carol">Carol</a></div>
+                <div data-testid="tweetText">So true</div>
+                <div role="link" tabindex="0"><div data-testid="User-Name"><span>Alice</span><span>@alice</span></div><div data-testid="tweetText">A walk in the park this morning</div></div>
+              </div></article>
+            </div></div></div>
+
+            <!-- A who-to-follow module: heading, user cells, "Show more", line. -->
+            <div data-testid="cellInnerDiv" id="cell-wtf-head" data-h="60"><div><h2 role="heading"><span>Who to follow</span></h2></div></div>
+            <div data-testid="cellInnerDiv" id="cell-wtf-user" data-h="80"><div><div data-testid="UserCell"><a href="/gina">Gina</a><button>Follow</button></div></div></div>
+            <div data-testid="cellInnerDiv" id="cell-wtf-more" data-h="50"><div><a href="/i/connect_people?user_id=1">Show more</a></div></div>
+            <div data-testid="cellInnerDiv" id="cell-line"><div style="height:1px"></div></div>
+
+            <!-- One a word block will catch. -->
+            <div data-testid="cellInnerDiv" id="cell-kw" data-h="200"><div><div>
+              <article data-testid="tweet" role="article"><div>
+                <div data-testid="User-Name"><a href="/hank">Hank</a></div>
+                <div data-testid="tweetText">Buy CRYPTO now</div>
+              </div></article>
+            </div></div></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <div data-testid="sidebarColumn" style="display:block;width:350px">
+    <div><div><div><div><div id="sidebar-blocks">
+      <div id="blk-search"><div><form role="search"><input data-testid="SearchBox_Search_Input" aria-label="Search query" placeholder="Search"></form></div></div>
+      <div></div>
+      <div id="blk-premium"><div><aside aria-label="Subscribe to Premium"><h2>Subscribe to Premium</h2><a href="/i/premium_sign_up">Subscribe</a></aside></div></div>
+      <div id="blk-news"><div data-testid="news_sidebar"><div data-testid="placementTracking"><div></div></div></div><div><h2>Today's News</h2></div><div><div data-testid="news_sidebar_article_abc" role="link" id="news-story">A made-up story</div></div></div>
+      <div id="blk-trends"><div><div><section role="region" aria-labelledby="tr"><h2 id="tr">What's happening</h2>
+        <div data-testid="trend" role="link" id="trend-promo"><div><span>Fizzy drink</span><div><svg><path d="M19.498 3h-15c-1.381 0-2.5 1.12-2.5 2.5v13z"></path></svg><span>Promoted by Fizz</span></div></div><div data-testid="caret"><svg><path d="M3 12c0-1.1.9-2 2-2z"></path></svg></div></div>
+        <div data-testid="trend" role="link" id="trend-plain"><div><span>Television · Trending</span><span>Some show</span></div><div data-testid="caret"><svg><path d="M3 12c0-1.1.9-2 2-2z"></path></svg></div></div>
+      </section></div></div></div>
+      <div id="blk-wtf"><div><aside aria-label="Who to follow"><h2>Who to follow</h2><div data-testid="UserCell" id="side-user"><a href="/ivan">Ivan</a><button>Follow</button></div><a href="/i/connect_people">Show more</a></aside></div></div>
+      <div id="blk-footer"><nav aria-label="Footer"><a href="https://x.com/tos">Terms</a></nav></div>
+    </div></div></div></div></div>
+  </div>
+</div>
+<div data-testid="GrokDrawer" id="grok-drawer" style="height:55px">Grok</div>
+<div data-testid="chat-drawer-root" id="chat-drawer" style="height:55px">Chat</div>
+</body>
+</html>

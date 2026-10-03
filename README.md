@@ -13,7 +13,8 @@ Nothing leaves your browser: no network requests, no analytics, no accounts.
 | --- | --- |
 | Facebook | done — checked against the live site, October 2026 |
 | Reddit | done — checked against the live site, October 2026 |
-| X, LinkedIn, Instagram, TikTok, Twitch | being added, one at a time |
+| X | done — checked against the live site, October 2026 |
+| LinkedIn, Instagram, TikTok, Twitch | being added, one at a time |
 
 Each site has its own switches and picked rules, and can be switched off on
 its own from the popup. The pause switch, the word list and the "show" bars
@@ -45,6 +46,13 @@ counts and the vote bar are drawn inside Reddit's own components, out of reach
 of an ordinary stylesheet; those switches put a small style into each one.
 **Recommended posts** only acts on Home, and only signed in: a post there
 from a community you haven't joined is one Reddit chose for you.
+
+On X, 24 switches. Five are on by default: promoted posts, promoted trends,
+Premium upsells, who to follow, and the unread badges. **Open Home on
+"Following"** switches Home away from the "For you" picks each time you
+arrive (click "For you" to stay there for that visit); **Replies from verified
+accounts** clears the paid-checkmark replies under a post you open, leaving
+the post and the thread above it.
 
 With a supported site's tab open, each active rule shows how much it matched on that
 page: **3 here**, or **none here** when nothing matched. Only things you would
@@ -92,7 +100,8 @@ Pick a whole post (press `↑` until the box covers it) and the rule becomes
 post's title. A post itself can't be picked any other way: Facebook rebuilds
 and renumbers the feed as you scroll. On Reddit, a whole post means **posts
 from that community**, and a part of a post (its title, picture, the line
-with the community name) means that part of every post.
+with the community name) means that part of every post. On X it means
+**posts from that account** — quotes of that account's posts stay.
 
 `Alt+Shift+B` pauses and resumes every rule at once; the toolbar icon shows
 **off** while paused.
@@ -222,6 +231,22 @@ misfire on what someone wrote. Corrections go in `src/sites/facebook.js`.
   had nothing to hide; it is checked against the fixture. Ads in feeds,
   sidebars and comment threads were checked live, including that they stay
   hidden while you scroll and hover.
+- **X: some switches were only seen working against the fixture.** There were
+  no unread items during testing, so the badge rule was never seen hiding a
+  real badge, and no who-to-follow rows came up in the Home timeline (the
+  right column's were checked live). Ads in the timeline and in replies,
+  promoted trends, the Premium card, reposts, verified replies and every
+  other switch were checked live, including that hidden ads leave no gap and
+  stay hidden while you scroll and hover.
+- **X: reposts and promoted trends key on the icons X draws beside them**
+  (the repost arrow, the promoted box), so they work in every language — but
+  if X redraws those icons, the switch shows **none here** until it's updated.
+- **X: Replies from verified accounts** needs to have seen the opened post: it
+  works when the switch is on as you open a thread. Turned on halfway down a
+  long thread, it starts working once you scroll back up past the post.
+- **X: Open Home on "Following"** clicks the tab for you, and X remembers the
+  last tab you used, so after turning it off Home stays on Following until you
+  click "For you" once.
 - **Firefox** would need the background section changed from `service_worker`
   to `scripts`; everything else is compatible.
 
@@ -232,6 +257,7 @@ manifest.json
 src/common/sites.js         the site list, and the registry rule packs join
 src/sites/facebook.js       Facebook's switches and detection (one file per site)
 src/sites/reddit.js         Reddit's
+src/sites/x.js              X's
 src/common/storage.js       one key in chrome.storage.local, shared everywhere
 src/content/engine.js       stylesheet builder + observer, driven by the site's pack
 src/content/picker.js       overlay, and the selector generator
@@ -251,8 +277,8 @@ switching a rule off brings things back, and the picker's selectors resolve to
 the elements they were generated from.
 
 `npm run test:browser` loads the unpacked extension into Chrome for Testing
-and serves fixture pages at `https://www.facebook.com/` and
-`https://www.reddit.com/`, so the content scripts
+and serves fixture pages at `https://www.facebook.com/`,
+`https://www.reddit.com/` and `https://x.com/`, so the content scripts
 run exactly as they do on the real site. It checks what jsdom cannot: that
 Chrome accepts every selector (jsdom is more lenient about `:has()`), the real
 CSS cascade, settings reaching open tabs, reel redirects, the popup, and

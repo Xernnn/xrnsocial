@@ -121,6 +121,17 @@
     return el.tagName.toLowerCase() + ':nth-child(' + i + ')';
   }
 
+  /* A rule for something outside the feed must not also catch a box that
+   * holds the feed: on X, the trends list and the timeline are both
+   * section[role="region"]. */
+  function swallowsFeed(el, list) {
+    var s = site();
+    if (!s || !s.units) return false;
+    var holdsPosts = function (e) { return e.matches(s.units) || !!e.querySelector(s.units); };
+    if (holdsPosts(el)) return false;
+    return Array.prototype.some.call(list, holdsPosts);
+  }
+
   /* A selector keyed on stable attributes. May legitimately match siblings —
    * "hide every Like button" is usually what a person means. */
   function broadSelector(el) {
@@ -128,7 +139,7 @@
     for (var i = 0; i < own.length; i++) {
       var list = matches(own[i]);
       if (list.length && Array.prototype.indexOf.call(list, el) !== -1 &&
-          (list.length <= MAX_BROAD_MATCHES || SEMANTIC[own[i]])) {
+          (list.length <= MAX_BROAD_MATCHES || SEMANTIC[own[i]]) && !swallowsFeed(el, list)) {
         return own[i];
       }
     }
@@ -144,7 +155,7 @@
         var sel = anchors[j] + ' > ' + tail.join(' > ');
         var found = matches(sel);
         if (found.length && found.length <= MAX_BROAD_MATCHES &&
-            Array.prototype.indexOf.call(found, el) !== -1) return sel;
+            Array.prototype.indexOf.call(found, el) !== -1 && !swallowsFeed(el, found)) return sel;
       }
     }
     return null;
