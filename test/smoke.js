@@ -134,6 +134,7 @@ function boot(html, url) {
     'src/sites/reddit.js',
     'src/sites/x.js',
     'src/sites/linkedin.js',
+    'src/sites/instagram.js',
     'src/common/storage.js',
     'src/content/engine.js',
     'src/content/picker.js'
@@ -750,6 +751,56 @@ console.log('\nlinkedin.com as of October 2026 (test/fixtures/linkedin.html)');
   ok('picking an activity post means posts from its author, not the one who reacted → ' + pick.author, pick.author === 'Dana Example');
   const pick2 = w.BFX_PICKER.selectorFor($$('item-plain'));
   ok('the author is named from the picture\'s label', pick2.author === 'Ana Example', pick2.author);
+}
+
+/* ---------------------------------------------- instagram.com, October 2026 -- */
+console.log('\ninstagram.com as of October 2026 (test/fixtures/instagram.html)');
+{
+  const html = fs.readFileSync(path.join(__dirname, 'fixtures/instagram.html'), 'utf8');
+  const w = boot(html, 'https://www.instagram.com/');
+  const $$ = id => w.document.getElementById(id);
+  const by = id => $$(id) && $$(id).getAttribute('data-bfx-hidden-by');
+  const shown = id => !$$(id).closest('[data-bfx-hidden-by]');
+  const S = w.BFX_STORE;
+  const sheet = () => w.document.getElementById('bfx-style').textContent;
+  const ids = w.BFX_SITES.get('instagram').presets.map(r => r.id);
+  const only = list => { const p = {}; ids.forEach(k => { p[k] = list.includes(k); }); return S.merge({ sites: { instagram: { presets: p } } }); };
+
+  ok('instagram.com runs the Instagram rules', w.BFX_ENGINE.site && w.BFX_ENGINE.site.id === 'instagram');
+  w.BFX_ENGINE.apply(S.merge(null));
+  await frame();
+  ok('an ad goes: no time, an "Ad" label and a redirect link', by('a-ad') === 'sponsored', 'got ' + by('a-ad'));
+  ok('an ad with a label in another language still goes: it has no time', by('a-ad-quiet') === 'sponsored', 'got ' + by('a-ad-quiet'));
+  ok('a post still loading is left alone until it has a name in its header', shown('a-loading'));
+  ok('reels are hidden by default, with the Reels menu item', sheet().includes('article:has(a[href^="/reels/"]:not([href^="/reels/audio/"])){display:none') && sheet().includes('a[href="/reels/"]{display:none'));
+  ok('ordinary and suggested posts stay by default', ['a-plain', 'a-suggested', 'a-video', 'a-kw'].every(shown));
+  ok('the Messages badge goes, and the tab title count', by('badge') === 'badges' && w.document.title === 'Instagram');
+  ok('opening a reel with Reels on lands on the feed',
+    w.BFX_ENGINE.redirectFor(S.merge(null), { hostname: 'www.instagram.com', pathname: '/reels/CCC/' }) === '/' &&
+    w.BFX_ENGINE.redirectFor(S.merge(null), { hostname: 'www.instagram.com', pathname: '/reel/CCC/' }) === '/' &&
+    w.BFX_ENGINE.redirectFor(S.merge(null), { hostname: 'www.instagram.com', pathname: '/reels/audio/123/' }) === null);
+
+  w.BFX_ENGINE.apply(only(['suggested']));
+  await frame();
+  ok('a text-only Follow button in the header marks a post from an account you don\'t follow',
+    by('a-suggested') === 'suggested' && shown('a-plain') && shown('a-reel'));
+  w.BFX_ENGINE.apply(only(['stories', 'rightSidebar']));
+  await frame();
+  ok('the stories tray and the right column go as whole blocks, the posts stay',
+    by('stories') === 'stories' && by('right-column') === 'rightSidebar' && shown('posts'));
+  const counts = (w.BFX_ENGINE.apply(S.merge(null)), await frame(), w.BFX_ENGINE.stats().presets);
+  ok('the popup counts the two ads and the reel', counts.sponsored.count === 2 && counts.reels.count >= 1, JSON.stringify(counts));
+
+  w.BFX_ENGINE.apply(S.merge({ keywords: { enabled: true, terms: ['crypto'] } }));
+  await frame();
+  ok('word blocks work on Instagram posts', by('a-kw') === 'keyword', 'got ' + by('a-kw'));
+
+  const pick = w.BFX_PICKER.selectorFor($$('a-plain'));
+  const hits = Array.from(w.document.querySelectorAll(pick.selector)).map(e => e.id);
+  ok('picking a post means posts from that account, not posts mentioning it → ' + pick.author,
+    pick.author === '@alice_example' && hits.join() === 'a-plain', hits.join());
+  const save = w.BFX_PICKER.selectorFor(w.document.querySelector('#actions-plain svg[aria-label="Save"]').closest('[role="button"]'));
+  ok('a button with only an icon is named by the icon: ' + save.selector, /:has\(svg\[aria-label="Save"\]\)/.test(save.selector));
 }
 
 report();

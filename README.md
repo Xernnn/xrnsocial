@@ -15,7 +15,8 @@ Nothing leaves your browser: no network requests, no analytics, no accounts.
 | Reddit | done — checked against the live site, October 2026 |
 | X | done — checked against the live site, October 2026 |
 | LinkedIn | done — checked against the live site, October 2026 |
-| Instagram, TikTok, Twitch | being added, one at a time |
+| Instagram | done — checked against the live site, October 2026 |
+| TikTok, Twitch | being added, one at a time |
 
 Each site has its own switches and picked rules, and can be switched off on
 its own from the popup. The pause switch, the word list and the "show" bars
@@ -59,6 +60,13 @@ On LinkedIn, 19 switches. Three are on by default: promoted posts, Premium
 upsells, and the red badges. **Posts from people you don't follow** and
 **Posts shown because of someone you know** ("X likes this", "X commented")
 are off by default — on a typical feed they are most of it.
+
+On Instagram, 13 switches. Three are on by default: sponsored posts, Reels
+(in the feed and the menu; opening a reel sends you to the feed, as on
+Facebook), and the red badges. Ads are recognised without reading any
+language: they are the only posts that don't say when they were posted.
+**Posts from accounts you don't follow** is off by default — once you have
+seen your follows, Instagram fills the feed with them.
 
 With a supported site's tab open, each active rule shows how much it matched on that
 page: **3 here**, or **none here** when nothing matched. Only things you would
@@ -109,7 +117,8 @@ from that community**, and a part of a post (its title, picture, the line
 with the community name) means that part of every post. On X it means
 **posts from that account** — quotes of that account's posts stay. On
 LinkedIn it means **posts from that person or page**, keyed on the author's
-picture in the header, never on whoever reacted.
+picture in the header, never on whoever reacted. On Instagram it means
+**posts from that account** — posts that merely mention it stay.
 
 `Alt+Shift+B` pauses and resumes every rule at once; the toolbar icon shows
 **off** while paused.
@@ -268,6 +277,12 @@ misfire on what someone wrote. Corrections go in `src/sites/facebook.js`.
 - **LinkedIn's post parts key on icon ids** (the Like, Comment and Repost
   buttons, the Follow "+", the post's "…" menu). If LinkedIn renumbers its
   icons, those switches show **none here** until they're updated.
+- **Instagram: only the home feed was mapped.** Ads in Stories, Explore and
+  the Reels tab are not covered, and there were no unread messages during
+  testing, so the badge rule was checked against the fixture only.
+- **Instagram's button row and counts** key on their position (the first and
+  second `section` of a post). If Instagram reorders them, those two switches
+  will hide the wrong row; the popup's count will look off.
 - **Firefox** would need the background section changed from `service_worker`
   to `scripts`; everything else is compatible.
 
@@ -280,6 +295,7 @@ src/sites/facebook.js       Facebook's switches and detection (one file per site
 src/sites/reddit.js         Reddit's
 src/sites/x.js              X's
 src/sites/linkedin.js       LinkedIn's
+src/sites/instagram.js      Instagram's
 src/common/storage.js       one key in chrome.storage.local, shared everywhere
 src/content/engine.js       stylesheet builder + observer, driven by the site's pack
 src/content/picker.js       overlay, and the selector generator
@@ -300,7 +316,8 @@ the elements they were generated from.
 
 `npm run test:browser` loads the unpacked extension into Chrome for Testing
 and serves fixture pages at `https://www.facebook.com/`,
-`https://www.reddit.com/`, `https://x.com/` and `https://www.linkedin.com/`, so the content scripts
+`https://www.reddit.com/`, `https://x.com/`, `https://www.linkedin.com/` and
+`https://www.instagram.com/`, so the content scripts
 run exactly as they do on the real site. It checks what jsdom cannot: that
 Chrome accepts every selector (jsdom is more lenient about `:has()`), the real
 CSS cascade, settings reaching open tabs, reel redirects, the popup, and

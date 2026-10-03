@@ -102,6 +102,13 @@
     stableClasses(el).slice(0, 2).forEach(function (c) {
       out.push(tag + '.' + escapeIdent(c));
     });
+    /* A button with nothing of its own but a labelled icon is named by the
+     * icon (Instagram's Save: div[role="button"]:has(svg[aria-label="Save"])).
+     * Icons only: an image's alt text is content — someone's name. */
+    var icons = attr('role') && !attr('aria-label') ? el.querySelectorAll('svg[aria-label]') : [];
+    if (icons.length === 1) {
+      out.push(tag + '[role=' + cssString(attr('role')) + ']:has(svg[aria-label=' + cssString(icons[0].getAttribute('aria-label')) + '])');
+    }
     if (attr('role')) out.push(tag + '[role=' + cssString(attr('role')) + ']');
     return out;
   }
@@ -121,15 +128,20 @@
     return el.tagName.toLowerCase() + ':nth-child(' + i + ')';
   }
 
-  /* A rule for something outside the feed must not also catch a box that
-   * holds the feed: on X, the trends list and the timeline are both
-   * section[role="region"]. */
-  function swallowsFeed(el, list) {
+  /* A rule for something outside the posts must not reach into them or
+   * swallow them: on X, the trends list and the timeline are both
+   * section[role="region"]; on Instagram, the stories tray and a post's
+   * photo carousel are both a ul in a role="presentation" box. */
+  function swallowsFeed(el, list, sel) {
     var s = site();
     if (!s || !s.units) return false;
-    var holdsPosts = function (e) { return e.matches(s.units) || !!e.querySelector(s.units); };
-    if (holdsPosts(el)) return false;
-    return Array.prototype.some.call(list, holdsPosts);
+    if (el.closest(s.units) || el.querySelector(s.units)) return false;
+    return Array.prototype.some.call(list, function (e) {
+      if (e.querySelector(s.units) || e.matches(s.units)) return true;
+      /* A named part (Reddit's suggestion slot) is the same thing inside a
+       * post as outside one; anything else stays out of posts. */
+      return !SEMANTIC[sel] && !!e.closest(s.units);
+    });
   }
 
   /* A selector keyed on stable attributes. May legitimately match siblings —
@@ -139,7 +151,7 @@
     for (var i = 0; i < own.length; i++) {
       var list = matches(own[i]);
       if (list.length && Array.prototype.indexOf.call(list, el) !== -1 &&
-          (list.length <= MAX_BROAD_MATCHES || SEMANTIC[own[i]]) && !swallowsFeed(el, list)) {
+          (list.length <= MAX_BROAD_MATCHES || SEMANTIC[own[i]]) && !swallowsFeed(el, list, own[i])) {
         return own[i];
       }
     }
@@ -155,7 +167,7 @@
         var sel = anchors[j] + ' > ' + tail.join(' > ');
         var found = matches(sel);
         if (found.length && found.length <= MAX_BROAD_MATCHES &&
-            Array.prototype.indexOf.call(found, el) !== -1 && !swallowsFeed(el, found)) return sel;
+            Array.prototype.indexOf.call(found, el) !== -1 && !swallowsFeed(el, found, sel)) return sel;
       }
     }
     return null;
