@@ -175,7 +175,6 @@ body {
   position: absolute; inset: 0;
   border-radius: 999px;
   background: var(--line);
-  transition: background .15s ease;
   pointer-events: none;
 }
 .track::after {
@@ -186,8 +185,9 @@ body {
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 3px rgba(0,0,0,.3);
-  transition: transform .15s ease;
 }
+.is-ready .track { transition: background .15s ease; }
+.is-ready .track::after { transition: transform .15s ease; }
 .switch.big .track::after { width: 20px; height: 20px; }
 .switch input:checked + .track { background: var(--accent); }
 .switch input:checked + .track::after { transform: translateX(16px); }
