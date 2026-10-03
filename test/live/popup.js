@@ -68,12 +68,16 @@ const ok = (label, cond, detail) => { if (!cond) failures++; console.log((cond ?
       return true;
     }, P.popup.label);
     const before = await measure();
-    const found = await flip(); await sleep(1500);
-    const on = await measure();
-    await flip(); await sleep(1500);
-    const off = await measure();
-    ok(`the "${P.popup.label}" switch in the popup hides it on the page and gives it back`,
-      found && before.n > 0 && before.hidden === 0 && on.hidden === on.n && off.hidden === 0, JSON.stringify([before, on, off]));
+    if (!before.n) {
+      console.log(`  - "${P.popup.label}": nothing on this page to toggle`);
+    } else {
+      const found = await flip(); await sleep(1500);
+      const on = await measure();
+      await flip(); await sleep(1500);
+      const off = await measure();
+      ok(`the "${P.popup.label}" switch in the popup hides it on the page and gives it back`,
+        found && before.hidden === 0 && on.hidden === on.n && off.hidden === 0, JSON.stringify([before, on, off]));
+    }
 
     const markers = () => page.evaluate(() => document.querySelectorAll('[data-bfx-hidden-by]').length);
     const rulesIn = () => page.evaluate(() => document.getElementById('bfx-style').textContent.split('\n').length);

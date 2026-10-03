@@ -101,6 +101,8 @@ async function wheel(page, steps, hover) {
         await only([]); await sleep(1200);
         if (probe.scroll) await wheel(page, probe.scroll, false);
         if (probe.effect) {
+          /* Effects like blur lift while the mouse is over a post. */
+          await page.mouse.move(2, 2);
           const a = await page.evaluate(probe.effect);
           await only([id]); await sleep(1500);
           const b = await page.evaluate(probe.effect);
