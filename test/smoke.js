@@ -131,6 +131,7 @@ function boot(html, url) {
   for (const file of [
     'src/common/sites.js',
     'src/sites/facebook.js',
+    'src/sites/reddit.js',
     'src/common/storage.js',
     'src/content/engine.js',
     'src/content/picker.js'
@@ -423,7 +424,7 @@ ok('a site switched off is paused, the rest are not',
   BFX_STORE.view(offHere, 'facebook').enabled === false && BFX_STORE.view(offHere, 'reddit').enabled === true);
 BFX_ENGINE.apply(offHere);
 ok('with Facebook switched off its pages get no rules',
-  window.document.getElementById('bfx-style').textContent.split('\n').length === 1);
+  window.document.getElementById('bfx-style').textContent.split('\n').every(l => l.startsWith('[data-bfx-hidden-by]')));
 const legacy = BFX_STORE.fromBackup({ app: 'BlockFB', version: 1, settings: { presets: { stories: true }, custom: [], keywords: { enabled: true, terms: ['x'] } } });
 ok('an old BlockFB backup restores into Facebook', legacy.sites.facebook.presets.stories === true && legacy.keywords.terms[0] === 'x');
 const v2 = BFX_STORE.fromBackup(BFX_STORE.toBackup(Object.assign(BFX_STORE.merge(null), { sites: { facebook: { enabled: false, presets: { feed: true }, custom: [] }, nowhere: { presets: { a: true } } } })));
@@ -545,6 +546,84 @@ console.log('\nfacebook.com as of October 2026 (test/fixtures/feed.html)');
   await frame();
   ok('the feed switch hides the box around every post and the loading skeleton',
     by('feedbox') === 'feed' && $$('loading').closest('[data-bfx-hidden-by]') !== null, 'got ' + by('feedbox'));
+}
+
+/* ---------------------------------------------- reddit.com, October 2026 -- */
+console.log('\nreddit.com as of October 2026 (test/fixtures/reddit.html)');
+{
+  const html = fs.readFileSync(path.join(__dirname, 'fixtures/reddit.html'), 'utf8');
+  /* jsdom leaves declarative shadow roots as inert templates; attach them
+   * the way Chrome's parser does. */
+  const withShadows = w => {
+    w.document.querySelectorAll('template[shadowrootmode]').forEach(t => {
+      const host = t.parentElement;
+      if (!host.shadowRoot) host.attachShadow({ mode: 'open' }).appendChild(t.content.cloneNode(true));
+      t.remove();
+    });
+    return w;
+  };
+  const w = withShadows(boot(html, 'https://www.reddit.com/'));
+  const $$ = id => w.document.getElementById(id);
+  const by = id => $$(id) && $$(id).getAttribute('data-bfx-hidden-by');
+  const shown = id => !$$(id).closest('[data-bfx-hidden-by]');
+  const S = w.BFX_STORE;
+  const sheet = () => w.document.getElementById('bfx-style').textContent;
+  const reddit = presets => S.merge({ sites: { reddit: { presets } } });
+
+  ok('reddit.com runs the Reddit rules', w.BFX_ENGINE.site && w.BFX_ENGINE.site.id === 'reddit');
+  w.BFX_ENGINE.apply(S.merge(null));
+  await frame();
+  ok('feed ads are hidden by their own element, with the line after them',
+    sheet().includes('shreddit-ad-post{display:none') && sheet().includes('shreddit-ad-post + hr{display:none'));
+  ok('sidebar and comment-thread ads are hidden', sheet().includes('shreddit-sidebar-ad{') &&
+    sheet().includes('shreddit-comments-page-ad{') && sheet().includes('shreddit-comment-tree-ad{'));
+  ok('a post from a community you have not joined is hidden on Home', by('a-rec') === 'recommended', 'got ' + by('a-rec'));
+  ok('a post from a community you joined stays', shown('a-sub'));
+  ok('the line after a hidden post goes with it',
+    sheet().includes('[data-bfx-hidden-by]:not([data-bfx-note]) + hr{display:none'));
+  ok('the tab title count is stripped', w.document.title === 'Reddit - The heart of the internet', w.document.title);
+  const counts = w.BFX_ENGINE.stats().presets;
+  ok('the popup counts an ad once, not its line, and skips empty slots',
+    counts.promoted.count === 1 && counts.relatedCommunities.count === 1 && counts.recommended.count === 1, JSON.stringify(counts));
+
+  w.BFX_ENGINE.apply(reddit({ counts: true, postActions: false }));
+  await frame();
+  const style = host => host.shadowRoot.querySelector('style[data-bfx]');
+  ok('counts are hidden inside the post\'s shadow root', !!style($$('t3_sub')) && /faceplate-number/.test(style($$('t3_sub')).textContent));
+  ok('and inside each comment\'s action row', !!style($$('row')) && /faceplate-number/.test(style($$('row')).textContent));
+  w.BFX_ENGINE.apply(reddit({ counts: false, postActions: true }));
+  await frame();
+  ok('switching counts off clears them; the action bar switch writes its own', /rpl-action-bar \{/.test(style($$('t3_sub')).textContent) &&
+    !/faceplate-number/.test(style($$('t3_sub')).textContent) && style($$('row')).textContent === '');
+
+  w.BFX_ENGINE.apply(S.merge({ sites: { reddit: { presets: { recommended: false } } }, keywords: { enabled: true, terms: ['crypto', 'Facebook', 'Upvote'] } }));
+  await frame();
+  ok('word blocks work on Reddit posts', by('a-kw') === 'keyword', 'got ' + by('a-kw'));
+  ok('and skip screen-reader-only text', shown('a-sub'), 'hidden by ' + by('a-sub'));
+
+  const pick = w.BFX_PICKER.selectorFor($$('a-sub'));
+  ok('picking a post means every post from its community → ' + pick.selector, pick.author === 'r/cats' && pick.valid &&
+    !Array.prototype.includes.call(w.document.querySelectorAll(pick.selector), $$('a-rec')));
+
+  const title = w.BFX_PICKER.selectorFor(w.document.querySelector('#t3_sub > [slot="title"]'));
+  ok('picking part of a post names the part: ' + title.selector, title.selector === 'shreddit-post > [slot="title"]');
+  const tree = w.BFX_PICKER.selectorFor($$('comment-tree'));
+  ok('picking a custom element uses its tag, not its id or classes: ' + tree.selector, tree.selector === 'shreddit-comment-tree');
+  const recent = w.BFX_PICKER.selectorFor($$('related'));
+  ok('a generic wrapper is keyed on what it holds, without the build hash: ' + recent.selector,
+    recent.selector === 'faceplate-partial[name^="RelatedCommunityRecommendations_"]');
+  $$('media-sub').className = 'relative block';
+  const img = w.BFX_PICKER.selectorFor($$('media-sub'));
+  ok('Reddit\'s utility classes are never used: ' + img.selector, !/\.relative|\.block/.test(img.selector));
+
+  const popular = withShadows(boot(html, 'https://www.reddit.com/r/popular/'));
+  popular.BFX_ENGINE.apply(popular.BFX_STORE.merge(null));
+  await frame();
+  ok('recommended posts are left alone off the home feed', !popular.document.getElementById('a-rec').hasAttribute('data-bfx-hidden-by'));
+  const out = withShadows(boot(html.replace(/ user-logged-in/g, ''), 'https://www.reddit.com/'));
+  out.BFX_ENGINE.apply(out.BFX_STORE.merge(null));
+  await frame();
+  ok('signed out, nothing counts as recommended', !out.document.getElementById('a-rec').hasAttribute('data-bfx-hidden-by'));
 }
 
 report();

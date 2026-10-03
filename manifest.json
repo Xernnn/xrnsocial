@@ -3,7 +3,10 @@
   "name": "BlockDistractXrn",
   "version": "2.0.0",
   "description": "Switch off the distracting parts of Facebook, Reddit, X, LinkedIn, Instagram, TikTok and Twitch: ads, suggestions, reels, sidebars — or point and click to hide anything else.",
-  "permissions": ["storage", "activeTab"],
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
   "host_permissions": [
     "*://*.facebook.com/*",
     "*://*.messenger.com/*",
@@ -54,23 +57,30 @@
       "js": [
         "src/common/sites.js",
         "src/sites/facebook.js",
+        "src/sites/reddit.js",
         "src/common/storage.js",
         "src/content/engine.js",
         "src/content/picker.js",
         "src/content/main.js"
       ],
-      "css": ["src/content/content.css"],
+      "css": [
+        "src/content/content.css"
+      ],
       "run_at": "document_start",
       "all_frames": false
     }
   ],
   "commands": {
     "toggle-picker": {
-      "suggested_key": { "default": "Alt+Shift+H" },
+      "suggested_key": {
+        "default": "Alt+Shift+H"
+      },
       "description": "Pick an element on the page to hide"
     },
     "toggle-master": {
-      "suggested_key": { "default": "Alt+Shift+B" },
+      "suggested_key": {
+        "default": "Alt+Shift+B"
+      },
       "description": "Pause or resume every BlockDistractXrn rule"
     }
   }
