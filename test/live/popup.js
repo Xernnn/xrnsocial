@@ -5,7 +5,7 @@
  * Checks the site chip, the status line, the live counts, one switch from the
  * site's probe file (`popup: { label, find }`), and the per-site switch. The
  * person's own settings are saved first and put back at the end. */
-const { connect, workTab, ensureVisible, contentWorld, sleep } = require('./lib');
+const { connect, workTab, ensureVisible, contentWorld, guardSettings, sleep } = require('./lib');
 
 const siteId = process.argv[2];
 const P = require('./probes/' + siteId);
@@ -19,7 +19,7 @@ const ok = (label, cond, detail) => { if (!cond) failures++; console.log((cond ?
   await ensureVisible(page, { focus: false });
   await sleep(5000);
   const run = await contentWorld(page);
-  const saved = await run('BFX_STORE.get().then(function (s) { return JSON.stringify(s); })');
+  const restoreSettings = await guardSettings(run);
   const name = await run(`BFX_SITES.info(${JSON.stringify(siteId)}).name`);
   let popup;
   try {
@@ -93,7 +93,7 @@ const ok = (label, cond, detail) => { if (!cond) failures++; console.log((cond ?
   } finally {
     if (popup) await popup.close().catch(() => {});
     const again = await contentWorld(page).catch(() => run);
-    await again(`BFX_STORE.set(${saved}).then(function () { return 1; })`);
+    await restoreSettings(again);
     await page.close();
     browser.disconnect();
   }

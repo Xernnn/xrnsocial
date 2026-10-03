@@ -143,4 +143,22 @@ async function scroll(page, steps, dy, pause) {
   }
 }
 
-module.exports = { ROOT, sleep, sites, connect, tabFor, workTab, ensureVisible, contentWorld, withSettingsRestored, reloadExtension, logins, scroll };
+/* The person's settings, kept on disk while a check runs: a browser that
+ * dies mid-run would otherwise take the only copy with it. A run that finds
+ * a copy left behind puts it back before anything else. */
+const SAVED = path.join(__dirname, '.saved-settings.json');
+async function guardSettings(run) {
+  if (fs.existsSync(SAVED)) {
+    const left = fs.readFileSync(SAVED, 'utf8');
+    await run(`BFX_STORE.set(${left}).then(function () { return 1; })`);
+    console.log('  (put back the settings an unfinished earlier run left behind)');
+  }
+  const saved = await run('BFX_STORE.get().then(function (s) { return JSON.stringify(s); })');
+  fs.writeFileSync(SAVED, saved);
+  return async again => {
+    await again(`BFX_STORE.set(${saved}).then(function () { return 1; })`);
+    fs.rmSync(SAVED, { force: true });
+  };
+}
+
+module.exports = { ROOT, sleep, sites, connect, tabFor, workTab, ensureVisible, contentWorld, withSettingsRestored, guardSettings, reloadExtension, logins, scroll };

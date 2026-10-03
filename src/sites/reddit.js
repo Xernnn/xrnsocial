@@ -255,6 +255,8 @@
      * reader sees. */
     unseen: 'faceplate-screen-reader-content',
     heuristics: HEURISTICS,
+    /* Reddit's player keeps its <video> in its shadow root. */
+    videoHosts: 'shreddit-player, shreddit-player-2',
     globals: {
       badges: function (api) { api.stripTitleCount(); }
     },

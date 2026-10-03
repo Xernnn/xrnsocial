@@ -337,13 +337,35 @@
   document.addEventListener('pointerdown', noteGesture, true);
   document.addEventListener('keydown', noteGesture, true);
 
-  document.addEventListener('play', function (e) {
+  function onPlay(e) {
     var video = e.target;
     if (!state || !state.enabled || !state.presets.noAutoplay) return;
     if (!video || video.tagName !== 'VIDEO') return;
-    if (Date.now() - lastGesture < GESTURE_MS) return;
+    if (Date.now() - lastGesture < GESTURE_MS) { video.__bfxStarted = true; return; }
     video.pause();
-  }, true);
+  }
+  document.addEventListener('play', onPlay, true);
+
+  /* "play" does not leave a shadow root, so a player that keeps its <video>
+   * in one (Reddit's shreddit-player) is never heard from the document. The
+   * pack names those players; their shadow roots get the same listener, and
+   * a video that started before its root was reached, and not by a click,
+   * is paused on the next scan. */
+  var VIDEO_HOSTS = (site && site.videoHosts) || '';
+  function watchShadowVideos() {
+    if (!VIDEO_HOSTS || !state || !state.enabled || !state.presets.noAutoplay) return;
+    document.querySelectorAll(VIDEO_HOSTS).forEach(function (host) {
+      var root = host.shadowRoot;
+      if (!root) return;
+      if (!root.__bfxPlay) {
+        root.__bfxPlay = true;
+        root.addEventListener('play', onPlay, true);
+        root.querySelectorAll('video').forEach(function (v) {
+          if (!v.paused && !v.__bfxStarted && Date.now() - lastGesture >= GESTURE_MS) v.pause();
+        });
+      }
+    });
+  }
 
   /* Walk up from `el` until just below `stop`, at most `max` levels. */
   function climbTo(el, stop, max) {
@@ -684,6 +706,7 @@
 
     runGlobalHeuristics(state);
     styleShadowRoots();
+    watchShadowVideos();
     reassert();
     ensureStyle();
   }
@@ -716,6 +739,7 @@
   function needsObserver(s) {
     if (!s.enabled) return false;
     if (jsRules.length || keywords.length || hasShadowRules()) return true;
+    if (VIDEO_HOSTS && s.presets.noAutoplay) return true;
     return globalIds().some(function (id) { return s.presets[id]; });
   }
 
@@ -834,6 +858,7 @@
     styleEl().textContent = css;
     shadowCss = collectShadow(state);
     styleShadowRoots();
+    watchShadowVideos();
 
     /* Anything hidden by a rule that is now off must come back. Cheap, and it
      * means toggling a switch is instantly visible instead of needing F5. */
