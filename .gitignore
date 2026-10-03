@@ -2,3 +2,4 @@ node_modules/
 blockfb.zip
 blockdistractxrn.zip
 test/fixtures/snapshots/*.html
+test/live/.saved-settings.json

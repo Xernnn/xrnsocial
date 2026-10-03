@@ -143,7 +143,9 @@
          * box rather than "any box with a picture", which would make every
          * div on the page a candidate. */
         SECTION + ':has([data-testid="expandable-text-box"]) a:has(> figure img):not([data-testid="expandable-text-box"] *):not([data-testid*="commentList"] *)',
-        SECTION + ':has([data-testid="expandable-text-box"]) div:has(> video):not([data-testid*="commentList"] *)'
+        SECTION + ':has([data-testid="expandable-text-box"]) div:has(> video):not([data-testid*="commentList"] *)',
+        /* An event's picture is a section of its own: a link, not a box. */
+        ITEM + ' h2 ~ a:has(> figure img)'
       ]
     },
     SITES.common.noAutoplay('Inside posts', 'Videos in the feed stay paused while you scroll past. Click one and it plays as normal.'),

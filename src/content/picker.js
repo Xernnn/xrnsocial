@@ -112,10 +112,11 @@
     stableClasses(el).slice(0, 2).forEach(function (c) {
       out.push(tag + '.' + escapeIdent(c));
     });
-    /* A button with nothing of its own but a labelled icon is named by the
-     * icon (Instagram's Save: div[role="button"]:has(svg[aria-label="Save"])).
+    /* A button or link with nothing of its own but a labelled icon is named
+     * by the icon (Instagram's Save: div[role="button"]:has(svg[aria-label="Save"])).
      * Icons only: an image's alt text is content — someone's name. */
-    var icons = attr('role') && !attr('aria-label') ? el.querySelectorAll('svg[aria-label]') : [];
+    var control = /^(button|link|menuitem|tab|switch|checkbox)$/.test(attr('role') || '');
+    var icons = control && !attr('aria-label') ? el.querySelectorAll('svg[aria-label]') : [];
     if (icons.length === 1) {
       out.push(tag + '[role=' + cssString(attr('role')) + ']:has(svg[aria-label=' + cssString(icons[0].getAttribute('aria-label')) + '])');
     }

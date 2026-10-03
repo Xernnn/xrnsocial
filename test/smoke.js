@@ -621,6 +621,23 @@ console.log('\nreddit.com as of October 2026 (test/fixtures/reddit.html)');
   const img = w.BFX_PICKER.selectorFor($$('media-sub'));
   ok('Reddit\'s utility classes are never used: ' + img.selector, !/\.relative|\.block/.test(img.selector));
 
+  /* Reddit's videos sit in the player's shadow root, where "play" from the
+   * video never reaches the document. */
+  const shadowVideo = $$('player').shadowRoot.querySelector('video');
+  let paused = 0;
+  shadowVideo.pause = () => { paused++; };
+  w.BFX_ENGINE.apply(reddit({ noAutoplay: true }));
+  await frame();
+  shadowVideo.dispatchEvent(new w.Event('play'));
+  ok('a video inside the player\'s shadow root that starts by itself is paused', paused === 1, paused + ' pauses');
+  shadowVideo.dispatchEvent(new w.MouseEvent('pointerdown', { bubbles: true, composed: true }));
+  shadowVideo.dispatchEvent(new w.Event('play'));
+  ok('…and one started by a click plays on', paused === 1, paused + ' pauses');
+  w.BFX_ENGINE.apply(reddit({ noAutoplay: false }));
+  await new Promise(r => setTimeout(r, 1600));
+  shadowVideo.dispatchEvent(new w.Event('play'));
+  ok('…and with the switch off nothing is paused', paused === 1, paused + ' pauses');
+
   const popular = withShadows(boot(html, 'https://www.reddit.com/r/popular/'));
   popular.BFX_ENGINE.apply(popular.BFX_STORE.merge(null));
   await frame();
@@ -755,6 +772,7 @@ console.log('\nlinkedin.com as of October 2026 (test/fixtures/linkedin.html)');
   ok('the button row, the counts and the picture go as sections; header and text stay',
     cssHides('actions-plain') && cssHides('counts-plain') && cssHides('media-plain') &&
     !cssHides('head-plain') && !cssHides('text-plain'));
+  ok('an event\'s picture, a section of its own, goes too', cssHides('event-media'));
   ok('where text and picture share a section, at any depth, only the picture goes',
     cssHides('ad-media-link') && !cssHides('ad-media-title') && !cssHides('ad-body'));
   ok('media never takes a header, an activity line or the author after it, whose pictures are people',
