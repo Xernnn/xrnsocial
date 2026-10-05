@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node test/smoke.js",
     "test:browser": "node test/browser.js",
-    "zip": "rm -f blockdistractxrn.zip && zip -r blockdistractxrn.zip manifest.json icons src -x '*.DS_Store'"
+    "zip": "rm -f blockdistractxrn.zip && zip -r blockdistractxrn.zip manifest.json icons src -x '*.DS_Store'",
+    "test:firefox": "node test/firefox.js"
   },
   "devDependencies": {
     "jsdom": "^24.0.0",

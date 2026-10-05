@@ -1,7 +1,15 @@
 /* Keyboard shortcuts and the toolbar badge. Everything else happens in the
- * content script; the worker stays asleep almost all of the time. */
-importScripts('../common/sites.js', '../common/storage.js');
+ * content script; the worker stays asleep almost all of the time.
+ *
+ * Chrome runs this as a service worker and needs importScripts. Firefox runs
+ * it as a background page, with sites.js and storage.js listed before it in
+ * the manifest, and has no importScripts there. */
+if (typeof importScripts === 'function' && !self.BFX_STORE) {
+  importScripts('../common/sites.js', '../common/storage.js');
+}
 
+/* Promise-returning calls: Firefox's browser.*, Chrome's chrome.*. */
+var ext = (typeof browser !== 'undefined' && browser.tabs) ? browser : chrome;
 var store = self.BFX_STORE;
 
 function paintBadge(state) {
@@ -11,7 +19,7 @@ function paintBadge(state) {
 
 /* The active tab, when it is on one of the supported sites. */
 function activeSiteTab() {
-  return chrome.tabs.query({ active: true, currentWindow: true }).then(function (tabs) {
+  return ext.tabs.query({ active: true, currentWindow: true }).then(function (tabs) {
     var tab = tabs && tabs[0];
     return tab && tab.url && self.BFX_SITES.forUrl(tab.url) ? tab : null;
   });
@@ -21,7 +29,7 @@ chrome.commands.onCommand.addListener(function (command) {
   if (command === 'toggle-picker') {
     activeSiteTab().then(function (tab) {
       if (!tab) return;
-      chrome.tabs.sendMessage(tab.id, { type: 'bfx:pick' }).catch(function () {
+      ext.tabs.sendMessage(tab.id, { type: 'bfx:pick' }).catch(function () {
         /* content script not injected yet (tab predates the install) */
       });
     });

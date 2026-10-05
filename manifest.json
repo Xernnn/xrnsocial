@@ -39,7 +39,12 @@
     "open_in_tab": true
   },
   "background": {
-    "service_worker": "src/background/service-worker.js"
+    "service_worker": "src/background/service-worker.js",
+    "scripts": [
+      "src/common/sites.js",
+      "src/common/storage.js",
+      "src/background/service-worker.js"
+    ]
   },
   "content_scripts": [
     {
@@ -87,6 +92,12 @@
         "default": "Alt+Shift+B"
       },
       "description": "Pause or resume every BlockDistractXrn rule"
+    }
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "blockdistractxrn@sonn.dev",
+      "strict_min_version": "128.0"
     }
   }
 }
