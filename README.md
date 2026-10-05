@@ -62,9 +62,12 @@ upsells, and the red badges. **Posts from people you don't follow** and
 **Posts shown because of someone you know** ("X likes this", "X commented")
 are off by default — on a typical feed they are most of it.
 
-On Instagram, 13 switches. Three are on by default: sponsored posts, Reels
-(in the feed and the menu; opening a reel sends you to the feed, as on
-Facebook), and the red badges. Ads are recognised without reading any
+On Instagram, 13 switches. Three are on by default: sponsored posts,
+recommended Reels, and the red badges. **Recommended Reels** hides reels in
+the feed, the Reels menu item and the Reels tab, but a reel someone sends
+you, or any reel you open by link, still plays — only that one: the viewer
+won't move on to the reels Instagram lines up after it. Nothing is hidden
+in Messages. Ads are recognised without reading any
 language: they are the only posts that don't say when they were posted.
 **Posts from accounts you don't follow** is off by default — once you have
 seen your follows, Instagram fills the feed with them.

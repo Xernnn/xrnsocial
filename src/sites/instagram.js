@@ -13,6 +13,8 @@
  *   - a post from an account you don't follow has a Follow button in its
  *     header: a button with text and no icon (the "…" button is an icon,
  *     the avatar a canvas)
+ *   - the reel viewer (/reels/<id>/) is a scroll list: the reel opened, then
+ *     reels picked for you; the address follows the one in view
  *   - the stories tray sits above the feed and the right column beside it;
  *     neither has a hook, so each is found by what it holds (a canvas ring,
  *     the /explore/people/ link) as the largest box without the feed in it
@@ -41,9 +43,11 @@
       id: 'reels',
       group: 'Feed',
       on: true,
-      label: 'Reels',
-      desc: 'Reels in the feed, the Reels menu item, and Reels pages (opening one sends you home).',
-      css: [POST + ':has(a[href^="/reels/"]:not([href^="/reels/audio/"]))', POST + ':has(a[href^="/reel/"])', 'a[href="/reels/"]']
+      label: 'Recommended Reels',
+      desc: 'Reels in the feed, the Reels tab and the next reels after one you open. A reel someone sends you still opens.',
+      css: ['a[href="/reels/"]'],
+      style: '[data-bfx-held] { overflow: hidden !important; }',
+      js: { kind: 'reel' }
     },
     {
       id: 'suggested',
@@ -147,6 +151,11 @@
       return true;
     },
 
+    /* A reel in the feed: a post linking to its reel page. */
+    reel: function (unit) {
+      return !!unit.querySelector('a[href^="/reel/"], a[href^="/reels/"]:not([href^="/reels/audio/"])');
+    },
+
     suggested: function (unit) {
       var header = headerOf(unit);
       if (!header) return false;
@@ -186,6 +195,74 @@
     api.stripTitleCount();
   }
 
+  /* A reel you open stays watchable; the ones after it do not. The reel
+   * viewer is a scroll list of reels: the one opened first, then reels
+   * picked for you (ads among them), and the address follows whichever is
+   * in view. With Reels on, the list is held on the reel that was opened:
+   * it cannot be scrolled (style), and any scroll the page makes itself —
+   * the next button, the arrow keys, moving on when a reel ends — is put
+   * back. Clicking a link to another reel (in a chat, say) opens that one. */
+  var REEL_PATH = /^\/reels?\/([\w-]+)\/?$/;
+  var visit = null;              // { id, box, top, at } for the reel being watched
+  var clicked = { id: null, at: 0 };
+  if (typeof document !== 'undefined') {
+    document.addEventListener('click', function (e) {
+      var a = e.target && e.target.closest && e.target.closest('a[href]');
+      var m = a && REEL_PATH.exec((a.getAttribute('href') || '').split('?')[0]);
+      if (m) clicked = { id: m[1], at: Date.now() };
+    }, true);
+  }
+
+  /* The scroll list: the nearest box around a video whose children hold
+   * videos of their own. */
+  function viewerOf(video) {
+    for (var n = video.parentElement; n && n !== document.body; n = n.parentElement) {
+      var withVideo = 0;
+      for (var i = 0; i < n.children.length; i++) {
+        if (n.children[i].querySelector('video')) withVideo++;
+      }
+      if (withVideo >= 2) return n;
+    }
+    return null;
+  }
+
+  function holding(api) {
+    var s = api.state();
+    return !!(s && s.enabled && s.presets.reels);
+  }
+
+  function keepReel(box, api) {
+    if (!visit || visit.box !== box || !holding(api)) return;
+    /* A link to another reel was just clicked: that reel is the one opened
+     * now, wherever the list moves to show it. */
+    if (clicked.id && clicked.id !== visit.id && Date.now() - clicked.at < 4000) {
+      visit = { id: clicked.id, box: box, top: box.scrollTop, at: Date.now() };
+      return;
+    }
+    /* Instagram places the list itself just after it opens; that first
+     * second sets where the opened reel is. */
+    if (Date.now() - visit.at < 1500) { visit.top = box.scrollTop; return; }
+    if (Math.abs(box.scrollTop - visit.top) > 4) box.scrollTop = visit.top;
+  }
+
+  function holdReel(api) {
+    var m = REEL_PATH.exec(location.pathname);
+    if (!m || m[1] === 'audio') { visit = null; return; }
+    var video = document.querySelector('main video');
+    var box = video && viewerOf(video);
+    if (!box) return;
+    var opened = clicked.id === m[1] && Date.now() - clicked.at < 4000 && (!visit || visit.id !== m[1]);
+    if (!visit || visit.box !== box || opened) {
+      visit = { id: m[1], box: box, top: box.scrollTop, at: Date.now() };
+      if (!box.__bfxHeld) {
+        box.__bfxHeld = true;
+        box.addEventListener('scroll', function () { keepReel(box, api); }, { passive: true });
+      }
+    }
+    if (!box.hasAttribute('data-bfx-held')) box.setAttribute('data-bfx-held', '');
+    keepReel(box, api);
+  }
+
   /* --------------------------------------------------------- picker ---- */
 
   /* Picking a post means "posts from this account", keyed on the header's
@@ -212,15 +289,21 @@
     silent: { sponsored: true },
     heuristics: HEURISTICS,
     globals: {
+      reels: holdReel,
       stories: besideFeed('stories', 'ul canvas'),
       rightSidebar: besideFeed('rightSidebar', 'a[href^="/explore/people/"]'),
       badges: stripBadges
     },
-    /* With Reels on, a reel opened from a link or a message lands on the
-     * feed instead. */
+    /* With Reels on, the Reels tab itself sends you to the feed. A single
+     * reel (/reel/<id>/, /reels/<id>/) still opens; holdReel keeps it to that
+     * one. */
     redirect: function (view, loc) {
       if (!view.presets.reels) return null;
-      return /^\/(reels?)\/[^/]+/.test(loc.pathname) && !/^\/reels\/audio\//.test(loc.pathname) ? '/' : null;
+      return /^\/reels\/?$/.test(loc.pathname) ? '/' : null;
+    },
+    /* Messages are left alone: a reel or a word in a chat is yours to see. */
+    skip: function (unit) {
+      return location.pathname.indexOf('/direct/') === 0 || !!unit.closest('[role="dialog"]');
     },
     picker: {
       authorOf: authorOf,

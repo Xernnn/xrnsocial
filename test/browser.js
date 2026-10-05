@@ -97,6 +97,7 @@ async function until(fn, timeout = 3000) {
     const xDoc = fs.readFileSync(path.join(fixtures, 'x.html'), 'utf8');
     const linkedinDoc = fs.readFileSync(path.join(fixtures, 'linkedin.html'), 'utf8');
     const instagramDoc = fs.readFileSync(path.join(fixtures, 'instagram.html'), 'utf8');
+    const instagramReelsDoc = fs.readFileSync(path.join(fixtures, 'instagram-reels.html'), 'utf8');
     const twitchDoc = fs.readFileSync(path.join(fixtures, 'twitch.html'), 'utf8');
     const tiktokDoc = fs.readFileSync(path.join(fixtures, 'tiktok.html'), 'utf8');
     const page = await browser.newPage();
@@ -112,7 +113,7 @@ async function until(fn, timeout = 3000) {
       } else if (/(^|\.)linkedin\.com$/.test(url.hostname) && req.resourceType() === 'document') {
         req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: linkedinDoc });
       } else if (/(^|\.)instagram\.com$/.test(url.hostname) && req.resourceType() === 'document') {
-        req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: instagramDoc });
+        req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: /^\/reels?\/\w/.test(url.pathname) ? instagramReelsDoc : instagramDoc });
       } else if (/(^|\.)twitch\.tv$/.test(url.hostname) && req.resourceType() === 'document') {
         req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: twitchDoc });
       } else if (/(^|\.)tiktok\.com$/.test(url.hostname) && req.resourceType() === 'document') {
@@ -551,8 +552,34 @@ async function until(fn, timeout = 3000) {
     ok('reels go by default, with the menu item; ordinary posts stay', await isHidden('a-reel') && await isHidden('menu-reels') &&
       !(await isHidden('a-plain')) && !(await isHidden('a-video')) && !(await isHidden('a-suggested')));
     ok('the Messages badge goes', await isHidden('badge'));
-    await page.goto('https://www.instagram.com/reels/CCC/', { waitUntil: 'domcontentloaded' });
-    ok('opening a reel with Reels on lands on the feed', await until(() => page.evaluate(() => location.pathname === '/'), 5000));
+    await page.goto('https://www.instagram.com/reels/', { waitUntil: 'domcontentloaded' });
+    ok('the Reels tab with Reels on lands on the feed', await until(() => page.evaluate(() => location.pathname === '/'), 5000));
+
+    /* A reel opened by link plays; the reels after it can't be reached. */
+    await page.goto('https://www.instagram.com/reels/AAA/', { waitUntil: 'domcontentloaded' });
+    await sleep(2500);
+    const reel = () => page.evaluate(() => ({ path: location.pathname, top: document.getElementById('viewer').scrollTop,
+      held: document.getElementById('viewer').hasAttribute('data-bfx-held'), overflow: getComputedStyle(document.getElementById('viewer')).overflowY }));
+    const opened = await reel();
+    ok('a reel opened by link stays open with Reels on', opened.path === '/reels/AAA/' && opened.top === 0, JSON.stringify(opened));
+    await page.click('#next'); await sleep(700);
+    const afterNext = await reel();
+    await page.mouse.move(200, 300); await page.mouse.wheel({ deltaY: 900 }); await sleep(700);
+    const afterWheel = await reel();
+    ok('…but the next one can\'t be reached: the next button and the wheel leave it on the reel opened',
+      opened.held && opened.overflow === 'hidden' && afterNext.top === 0 && afterWheel.top === 0, JSON.stringify({ afterNext, afterWheel }));
+    await page.click('#chat-link'); await sleep(1600);
+    const sent = await reel();
+    await page.click('#next'); await sleep(700);
+    const sentAfter = await reel();
+    ok('clicking a link to another reel (from a chat) opens that one, and holds there too',
+      sent.path === '/reels/BBB/' && sent.top === 600 && sentAfter.top === 600, JSON.stringify({ sent, sentAfter }));
+    await setState(s => { s.sites.instagram.presets.reels = false; });
+    await sleep(800);
+    await page.click('#next'); await sleep(700);
+    const free = await reel();
+    ok('with Reels off, the next reel comes as usual', free.top === 1200 && free.overflow !== 'hidden', JSON.stringify(free));
+    await setState(s => { s.sites.instagram.presets.reels = true; });
     await page.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded' });
 
     const igOnly = list => setState(`s => { const p = s.sites.instagram.presets; ${JSON.stringify(igIds)}.forEach(k => { p[k] = false; }); ${list.map(id => `p.${id} = true;`).join(' ')} }`);

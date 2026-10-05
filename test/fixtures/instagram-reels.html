@@ -1,0 +1,46 @@
+<!doctype html>
+<!-- instagram.com/reels/<id>/ as it was built in October 2026, cut down: the
+     reel viewer is a scroll-snap list of full-height slots, the reel opened
+     first and then reels picked for you; the address follows the slot in
+     view. The script stands in for Instagram's: the next button scrolls the
+     list, scrolling updates the address, and a link to another reel (as in
+     a chat) moves to it. Names are made up. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Instagram</title></head>
+<body style="margin:0;font:14px sans-serif">
+  <a href="/reels/" id="menu-reels">Reels</a>
+  <main role="main" style="display:block">
+    <div style="display:flex">
+      <div id="viewer" style="height:600px;width:400px;overflow-y:auto;scroll-snap-type:y mandatory">
+        <div class="slot" data-id="AAA" style="height:600px;scroll-snap-align:start"><video id="v-AAA" muted loop></video><a href="/alice_example/reels/">alice_example</a></div>
+        <div class="slot" data-id="BBB" style="height:600px;scroll-snap-align:start"><video id="v-BBB" muted loop></video><a href="/bob_example/reels/">bob_example</a></div>
+        <div class="slot" data-id="CCC" style="height:600px;scroll-snap-align:start"><video id="v-CCC" muted loop></video><a href="https://www.facebook.com/ads/ig_redirect/?d=1">Shop</a></div>
+      </div>
+      <div>
+        <button id="next" aria-label="Navigate to next Reel">next</button>
+        <a href="/reels/BBB/" id="chat-link">a reel someone sent you</a>
+      </div>
+    </div>
+  </main>
+  <script>
+    var viewer = document.getElementById('viewer');
+    var slots = [].slice.call(document.querySelectorAll('.slot'));
+    document.getElementById('next').addEventListener('click', function () {
+      viewer.scrollBy({ top: 600, behavior: 'instant' });
+    });
+    viewer.addEventListener('scroll', function () {
+      var i = Math.round(viewer.scrollTop / 600);
+      var id = slots[i] && slots[i].dataset.id;
+      if (id && location.pathname !== '/reels/' + id + '/') history.replaceState(null, '', '/reels/' + id + '/');
+    });
+    document.getElementById('chat-link').addEventListener('click', function (e) {
+      e.preventDefault();
+      history.pushState(null, '', '/reels/BBB/');
+      viewer.scrollTop = 600;
+    });
+    /* Opened at a slot's address: start there. */
+    var start = slots.findIndex(function (s) { return location.pathname.indexOf(s.dataset.id) !== -1; });
+    if (start > 0) viewer.scrollTop = start * 600;
+  </script>
+</body>
+</html>
