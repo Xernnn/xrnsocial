@@ -6,25 +6,21 @@
 </head>
 <body>
   <header class="head">
+    <span class="logo">B</span>
     <div class="brand">
-      <span class="logo">B</span>
-      <div>
-        <strong>BlockDistractXrn</strong>
-        <span class="sub" id="status">loading…</span>
-      </div>
+      <strong>BlockDistractXrn</strong>
+      <span class="sub" id="status">loading…</span>
     </div>
-    <label class="switch big" title="Pause or resume every rule on every site">
+    <label class="switch big" title="Turn every rule on every site on or off">
       <input type="checkbox" id="master" />
       <span class="track"></span>
     </label>
   </header>
 
-  <button class="pick" id="pick">
+  <button class="pick" id="pick" title="Point at anything on the page and click to hide it">
     <span class="pick-icon">⌖</span>
-    <span>
-      <b>Hide something by clicking it</b>
-      <em>Alt+Shift+H on any supported site</em>
-    </span>
+    <b>Pick something to hide</b>
+    <kbd id="pickKey">Alt+Shift+H</kbd>
   </button>
 
   <nav class="sites" id="sites" aria-label="Site"></nav>
@@ -36,17 +32,14 @@
   </nav>
 
   <section class="panel is-on" data-panel="presets">
-    <div class="row rowtop" id="siteRow">
-      <div class="row-text">
-        <b id="siteLabel">Use on this site</b>
-        <em>Off leaves this site exactly as it is; the other sites keep their rules.</em>
-      </div>
+    <div class="row master-row" id="siteRow">
+      <div class="row-text"><b id="siteLabel">Use on this site</b></div>
       <label class="switch">
         <input type="checkbox" id="siteEnabled" />
         <span class="track"></span>
       </label>
     </div>
-    <input type="search" id="filter" class="filter" placeholder="Filter blocks…" />
+    <input type="search" id="filter" class="filter" placeholder="Search" />
     <div id="presets"></div>
   </section>
 
@@ -55,24 +48,18 @@
   </section>
 
   <section class="panel" data-panel="words">
-    <div class="row rowtop">
-      <div class="row-text">
-        <b>Hide posts containing these words</b>
-        <em>On every site. One per line. Wrap in slashes for a regex: /crypto|nft/i</em>
-      </div>
+    <div class="row master-row">
+      <div class="row-text"><b>Hide posts with these words</b></div>
       <label class="switch">
         <input type="checkbox" id="kwEnabled" />
         <span class="track"></span>
       </label>
     </div>
-    <textarea id="kwTerms" spellcheck="false" placeholder="politics&#10;engagement&#10;/giveaway|sweepstake/i"></textarea>
-    <p class="note">Matched against the whole post, so keep words specific. <span id="kwCount"></span></p>
+    <textarea id="kwTerms" spellcheck="false" placeholder="One per line, e.g.&#10;politics&#10;giveaway"></textarea>
+    <p class="note"><span>All sites · /regex/ works</span><span id="kwCount"></span></p>
 
-    <div class="row rowtop" id="phRow">
-      <div class="row-text">
-        <b>Leave a "show" bar where posts were hidden</b>
-        <em>For word blocks and the feed's text rules (suggested posts, friend activity…), so a wrong hide is one click to undo. Ads stay gone.</em>
-      </div>
+    <div class="row" id="phRow" title="Hidden posts leave a thin bar you can click to show them. Ads never do.">
+      <div class="row-text"><b>Leave a "show" bar</b></div>
       <label class="switch">
         <input type="checkbox" id="placeholders" />
         <span class="track"></span>
@@ -82,9 +69,9 @@
 
   <footer class="foot">
     <span>
-      <button id="backup" class="link">Back up / restore</button>
-      <span class="muted">·</span>
-      <button id="reset" class="link danger">Reset everything</button>
+      <button id="backup" class="link">Back up</button>
+      <span class="dot">·</span>
+      <button id="reset" class="link danger">Reset</button>
     </span>
     <span id="hidden" class="muted"></span>
   </footer>

@@ -20,7 +20,7 @@ module.exports = {
   alwaysThere: ['[data-testid="mainFeed"]', 'header'],
   adSteps: 16,
   ads: `() => [...document.querySelectorAll('${ITEM}')].filter(${isPromoted}).map(${box})`,
-  popup: { label: "Today's puzzles", find: `() => [...document.querySelectorAll('[componentkey="feedRightNavGamesComponentRef"]')]` },
+  popup: { label: 'Puzzles (games)', find: `() => [...document.querySelectorAll('[componentkey="feedRightNavGamesComponentRef"]')]` },
   truth: {
     switches: ['promoted'],
     steps: 16,

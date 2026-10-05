@@ -107,7 +107,7 @@
     {
       id: 'threadsLink',
       group: 'Menu',
-      label: 'Threads and "Also from Meta"',
+      label: 'Threads links',
       desc: 'Meta\'s cross-promotion in the menu.',
       css: ['a[href^="https://www.threads.com"]', 'a[href^="https://www.threads.net"]']
     },

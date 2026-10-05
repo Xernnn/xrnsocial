@@ -174,7 +174,7 @@
     {
       id: 'games',
       group: 'Sidebars',
-      label: 'Today\'s puzzles',
+      label: 'Puzzles (games)',
       desc: 'LinkedIn\'s games in the right column.',
       css: ['[componentkey="feedRightNavGamesComponentRef"]']
     },
