@@ -25,10 +25,26 @@ are shared by every site.
 
 ## Install (unpacked)
 
+**Chrome, Edge, Brave and other Chromium browsers**
+
 1. `chrome://extensions` → turn on **Developer mode**
 2. **Load unpacked** → pick this folder
 3. Open a supported site. Already-open tabs need one reload, because the
    content script is injected at page load.
+
+**Firefox, Zen, LibreWolf and other Firefox browsers** (128 or newer)
+
+1. `about:debugging` → **This Firefox** (or **This Zen**) → **Load Temporary
+   Add-on…** → pick `manifest.json` in this folder
+2. Open a supported site (reload tabs that were already open).
+3. If nothing gets hidden, open the add-on's page in `about:addons` →
+   **Permissions** and allow it on the sites.
+
+A temporary add-on is removed when the browser closes. To keep it, the
+add-on has to be signed — free, through an unlisted upload on
+addons.mozilla.org — or, in builds that allow it (Developer Edition,
+Nightly, some forks), set `xpinstall.signatures.required` to `false` in
+`about:config` and install the packed zip.
 
 `npm run zip` packs a `blockdistractxrn.zip` for the Web Store or for sharing.
 
@@ -307,8 +323,10 @@ misfire on what someone wrote. Corrections go in `src/sites/facebook.js`.
 - **TikTok has no ad switch yet.** The test window wasn't signed in to TikTok,
   and signed out a login prompt stops the feed after a few videos, so no ads
   came up to measure. Hide one with the picker for now.
-- **Firefox** would need the background section changed from `service_worker`
-  to `scripts`; everything else is compatible.
+- **In Firefox the popup was not driven by the automated tests** (Firefox's
+  automation won't open extension pages). Everything on the pages was
+  checked in Firefox 157 (`npm run test:firefox`); the popup is the same page
+  as in Chrome, where it is tested.
 
 ## Layout
 
