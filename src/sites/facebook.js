@@ -70,7 +70,7 @@
       id: 'adSweep',
       group: 'Ads',
       on: true,
-      label: 'Ads everywhere else',
+      label: 'Ads in Marketplace, search & Watch',
       desc: 'Marketplace, search results, groups — any card labelled Ad or Sponsored outside the feed. Hides that one card, not the grid around it.',
       js: { kind: 'sweep' }
     },
@@ -350,7 +350,7 @@
     {
       id: 'navTabs',
       group: 'Top bar',
-      label: 'All centre tabs',
+      label: 'Top bar tabs (all)',
       desc: 'Home, Reels, Friends, Marketplace, Gaming.',
       css: ['div[role="banner"] div[role="navigation"]:has(a[aria-label="Home"])']
     },
@@ -436,7 +436,7 @@
     {
       id: 'narrowFeed',
       group: 'Effects',
-      label: 'Centre the feed',
+      label: 'Center the feed',
       desc: 'Once the sidebars are gone, pull the column back into the middle.',
       style: 'div[role="main"] { margin-inline: auto !important; }'
     }

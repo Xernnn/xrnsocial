@@ -17,16 +17,16 @@
 
     <section class="card">
       <h2>Back up</h2>
-      <p class="dim">Saves every switch, picked rule and blocked word to a file. Nothing is uploaded anywhere — the file goes to your downloads folder.</p>
+      <p class="dim">Saves all your settings to a file on this computer.</p>
       <button id="export" class="primary">Download backup</button>
     </section>
 
     <section class="card">
       <h2>Restore</h2>
-      <p class="dim">Replaces everything you have now, on every site, with the contents of a backup file. Open tabs pick it up straight away.</p>
+      <p class="dim">Loads a backup file. It replaces your current settings.</p>
       <input type="file" id="file" accept=".json,application/json" />
       <p id="preview" class="dim"></p>
-      <button id="restore" class="primary" disabled>Replace my settings with this backup</button>
+      <button id="restore" class="primary" disabled>Restore this backup</button>
       <p id="message" class="message"></p>
     </section>
   </main>

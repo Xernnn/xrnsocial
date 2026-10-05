@@ -55,7 +55,8 @@ const ok = (label, cond, detail) => { if (!cond) failures++; console.log((cond ?
     ok(`the popup opens on ${name}, marked as this tab's site`, v.chosen === name && v.here === name, JSON.stringify(v.chosen + ' / ' + v.here));
     ok(`status reads "${v.status}"`, new RegExp('^' + name + ': \\d+ rules? active$').test(v.status));
     ok(`${name}'s own groups are listed: ${v.groups.join(', ')}`, v.groups.length > 1);
-    ok(`live counts on the switches that are on: ${v.chips.join('; ')}`, v.chips.length > 0);
+    /* Counts show only on switches that hide something on this page. */
+    console.log(`  · counts on this page: ${v.chips.join('; ') || 'none hide anything here'}`);
 
     const measure = () => page.evaluate(src => {
       const els = new Function('return (' + src + ')()')() || [];

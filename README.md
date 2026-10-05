@@ -83,13 +83,13 @@ dramas in the menu, **Stop videos playing by themselves** (For You then
 waits for a click), and the two effects. There is no ad switch yet; word
 blocks and the picker already work on videos.
 
-With a supported site's tab open, each active rule shows how much it matched on that
-page: **3 here**, or **none here** when nothing matched. Only things you would
-have seen count — not the empty slots a site keeps on every post for content
-it might load later. "None here" is often
-just a page without that thing on it — but if you can still see it, the site
-has changed and the rule needs repairing with the picker. A selector Chrome
-rejects outright is marked **broken**.
+Each switch is one short line; hover it for a longer explanation. With a
+supported site's tab open, a switch that is hiding something there shows how
+much — **3 here** — and the footer adds it all up. Only things you would have
+seen count, not the empty slots a site keeps on every post for content it
+might load later. A picked rule that matches nothing shows **none here**: if
+you can still see the thing, the site changed, so pick it again. A rule the
+browser rejects outright is marked **broken**.
 
 The Reels rule also blocks reel pages: opening a reel from a link, a
 notification or the address bar lands you back on the feed. **All video
@@ -274,7 +274,7 @@ misfire on what someone wrote. Corrections go in `src/sites/facebook.js`.
   stay hidden while you scroll and hover.
 - **X: reposts and promoted trends key on the icons X draws beside them**
   (the repost arrow, the promoted box), so they work in every language — but
-  if X redraws those icons, the switch shows **none here** until it's updated.
+  if X redraws those icons, the switch stops showing a count until it's updated.
 - **X: Replies from verified accounts** needs to have seen the opened post: it
   works when the switch is on as you open a thread. Turned on halfway down a
   long thread, it starts working once you scroll back up past the post.
@@ -293,7 +293,7 @@ misfire on what someone wrote. Corrections go in `src/sites/facebook.js`.
   activity posts, every post part and both columns were checked live.
 - **LinkedIn's post parts key on icon ids** (the Like, Comment and Repost
   buttons, the Follow "+", the post's "…" menu). If LinkedIn renumbers its
-  icons, those switches show **none here** until they're updated.
+  icons, those switches stop showing a count until they're updated.
 - **Instagram: only the home feed was mapped.** Ads in Stories, Explore and
   the Reels tab are not covered, and there were no unread messages during
   testing, so the badge rule was checked against the fixture only.

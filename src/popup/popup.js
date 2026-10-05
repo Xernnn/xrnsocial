@@ -96,23 +96,24 @@ function plural(n, word) {
 
 /* ------------------------------------------------------------- health -- */
 
-/* How much a rule matched on the open tab. "None here" is often just a page
- * without that thing on it, so it is worded as a hint, not an alarm; only a
- * selector Chrome rejects is called broken. */
-function healthChip(stat) {
+/* How much a rule hides on the open tab. A switch shows a count only when
+ * it hides something here — "nothing here" on every other row was noise.
+ * A picked rule that matches nothing does say so: it is the usual sign the
+ * site changed under it. Only a selector the browser rejects is broken. */
+function healthChip(stat, picked) {
   if (!stat) return null;
   var broken = stat.broken || [];
   var chip;
   if (stat.offPage) {
     chip = node('span', 'chip zero', 'other page');
-    chip.title = 'Scoped to a different page, so it does nothing here.';
+    chip.title = 'Set to a different page, so it does nothing here.';
   } else if (broken.length && !stat.count) {
     chip = node('span', 'chip bad', 'broken');
-    chip.title = 'Chrome rejects this selector, so it can never match:\n' + broken.join('\n');
+    chip.title = 'The browser rejects this rule, so it can never match:\n' + broken.join('\n');
   } else if (!stat.count) {
+    if (!picked) return null;
     chip = node('span', 'chip zero', 'none here');
-    chip.title = 'Nothing on this page matched. That is fine if there is nothing to hide here. ' +
-      'If you can still see it, the site probably changed: hide it with the picker to make a rule that works.';
+    chip.title = 'Nothing on this page matches. If you can still see it, the site changed: pick it again.';
   } else {
     chip = node('span', 'chip' + (broken.length ? ' warn' : ''), stat.count + ' here');
     chip.title = plural(stat.count, 'element') + ' matched on this page.' +
@@ -165,12 +166,13 @@ function renderPresets() {
     el.presets.appendChild(node('div', 'group', group));
     rules.forEach(function (rule) {
       var row = node('div', 'row');
+      /* The longer explanation is there on hover, not in the way. */
+      if (rule.desc) row.title = rule.desc;
       var text = node('div', 'row-text');
       var title = node('b', null, rule.label);
       var chip = mine.presets[rule.id] && healthChip(liveStat('presets', rule.id));
       if (chip) title.appendChild(chip);
       text.appendChild(title);
-      if (rule.desc) text.appendChild(node('em', null, rule.desc));
       row.appendChild(text);
       var sw = makeSwitch(mine.presets[rule.id], function (on) {
         mutateSite(function (m) { m.presets[rule.id] = on; });
@@ -197,9 +199,8 @@ function renderCustom() {
 
   if (!mine.custom.length) {
     var empty = node('div', 'empty');
-    empty.appendChild(node('b', null, 'Nothing picked on ' + pack().name + ' yet'));
-    empty.appendChild(node('span', null,
-      'Open ' + pack().name + ', hit the button above, then click whatever is bothering you.'));
+    empty.appendChild(node('b', null, 'Nothing picked yet'));
+    empty.appendChild(node('span', null, 'Use “Pick something to hide” on ' + pack().name + '.'));
     el.custom.appendChild(empty);
     return;
   }
@@ -208,14 +209,14 @@ function renderCustom() {
     var row = node('div', 'custom-row');
 
     var text = node('div', 'row-text');
-    var title = node('b', null, rule.label || 'Custom rule');
-    var chip = rule.enabled !== false && healthChip(liveStat('custom', rule.id));
+    text.title = rule.selector;
+    var title = node('b', null, rule.label || 'Picked element');
+    var chip = rule.enabled !== false && healthChip(liveStat('custom', rule.id), true);
     if (chip) title.appendChild(chip);
     text.appendChild(title);
-    text.appendChild(node('code', null, rule.selector));
 
     var scope = node('select', 'scope');
-    [['all', 'On every page'], ['path', 'Only on ' + rule.path]].forEach(function (pair) {
+    [['all', 'Every page'], ['path', 'Only ' + rule.path]].forEach(function (pair) {
       var opt = node('option', null, pair[1]);
       opt.value = pair[0];
       if (rule.scope === pair[0]) opt.selected = true;
@@ -233,7 +234,7 @@ function renderCustom() {
     }));
 
     var del = node('button', 'del', '×');
-    del.title = 'Delete this rule';
+    del.title = 'Delete';
     del.addEventListener('click', function () {
       mutateSite(function (m) {
         m.custom = m.custom.filter(function (r) { return r.id !== rule.id; });
@@ -261,14 +262,14 @@ function render() {
   el.status.textContent = !state.enabled ? 'paused everywhere — nothing is hidden'
     : !mine.enabled ? pack().name + ': off'
     : pack().name + ': ' + plural(countOn(), 'rule') + ' active';
-  el.siteLabel.textContent = 'Use on ' + pack().name;
+  el.siteLabel.textContent = 'Block on ' + pack().name;
   el.siteEnabled.checked = mine.enabled;
   el.kwEnabled.checked = state.keywords.enabled;
   if (document.activeElement !== el.kwTerms) {
     el.kwTerms.value = (state.keywords.terms || []).join('\n');
   }
   el.kwCount.textContent = stats && stats.site === tabSite && state.enabled && state.keywords.enabled
-    ? plural(stats.keyword, 'post') + ' hidden on this page.'
+    ? stats.keyword + ' hidden here'
     : '';
   el.placeholders.checked = !!state.placeholders;
   renderSites();
@@ -285,10 +286,20 @@ function refreshStats(delay) {
       void chrome.runtime.lastError;   // tab predates install; reload fixes it
       if (!res || !res.ok) return;
       stats = res.stats || null;
-      el.hidden.textContent = res.hidden + ' hidden on this page';
+      var total = totalHidden(stats);
+      el.hidden.textContent = total ? total + ' hidden on this page' : '';
       if (state) render();
     });
   }, delay == null ? 250 : delay);
+}
+
+/* Everything the rules hide on the tab, stylesheet and scripts alike. */
+function totalHidden(st) {
+  if (!st) return 0;
+  var sum = function (map) {
+    return Object.keys(map || {}).reduce(function (n, k) { return n + ((map[k] && map[k].count) || 0); }, 0);
+  };
+  return sum(st.presets) + sum(st.custom) + (st.keyword || 0);
 }
 
 function switchTab(name) {
@@ -393,7 +404,8 @@ chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
   if (tabSite && SITES.get(tabSite)) {
     tab = t;
   } else {
-    el.pick.querySelector('em').textContent = 'Open a supported site to use this';
+    el.pick.disabled = true;
+    el.pick.querySelector('b').textContent = 'Open a supported site to pick';
   }
   ready.tab = true;
   start();

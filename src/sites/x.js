@@ -109,7 +109,7 @@
     {
       id: 'following',
       group: 'Feed',
-      label: 'Open Home on "Following"',
+      label: 'Start Home on “Following”',
       behavior: true,
       desc: 'Switches Home from the "For you" picks to the people you follow, each time you arrive. Click "For you" to go back for the visit.'
     },
@@ -170,7 +170,7 @@
     {
       id: 'navExtras',
       group: 'Sidebars',
-      label: 'Extra menu items',
+      label: 'Menu extras (Grok, Premium…)',
       desc: 'Grok, Premium, Creator Studio, History, Communities, Jobs, Lists, Business and Monetization in the left menu and the More menu. Home, Explore, Notifications, Messages and Profile stay.',
       css: navLinks(['/i/grok', '/i/premium_sign_up', '/i/jf/creators/studio', '/i/history', '/jobs', '/i/verified-orgs-signup', '/i/monetization', '/i/spaces/start'])
         .concat(navEnds(['/communities', '/lists']))
@@ -207,7 +207,7 @@
     {
       id: 'composer',
       group: 'Floating & badges',
-      label: 'Post box on Home and under posts',
+      label: '“What’s happening?” box',
       desc: 'The "What\'s happening?" box. The Post button in the menu still opens one.'
     },
     {
