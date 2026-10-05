@@ -813,13 +813,18 @@ console.log('\ninstagram.com as of October 2026 (test/fixtures/instagram.html)')
   ok('an ad goes: no time, an "Ad" label and a redirect link', by('a-ad') === 'sponsored', 'got ' + by('a-ad'));
   ok('an ad with a label in another language still goes: it has no time', by('a-ad-quiet') === 'sponsored', 'got ' + by('a-ad-quiet'));
   ok('a post still loading is left alone until it has a name in its header', shown('a-loading'));
-  ok('reels are hidden by default, with the Reels menu item', sheet().includes('article:has(a[href^="/reels/"]:not([href^="/reels/audio/"])):not(#bfx-z){display:none') && sheet().includes('a[href="/reels/"]:not(#bfx-z){display:none'));
+  ok('recommended reels are hidden by default in the feed, with the Reels menu item', by('a-reel') === 'reels' && sheet().includes('a[href="/reels/"]:not(#bfx-z){display:none'), 'got ' + by('a-reel'));
   ok('ordinary and suggested posts stay by default', ['a-plain', 'a-suggested', 'a-video', 'a-kw'].every(shown));
   ok('the Messages badge goes, and the tab title count', by('badge') === 'badges' && w.document.title === 'Instagram');
-  ok('opening a reel with Reels on lands on the feed',
-    w.BFX_ENGINE.redirectFor(S.merge(null), { hostname: 'www.instagram.com', pathname: '/reels/CCC/' }) === '/' &&
-    w.BFX_ENGINE.redirectFor(S.merge(null), { hostname: 'www.instagram.com', pathname: '/reel/CCC/' }) === '/' &&
-    w.BFX_ENGINE.redirectFor(S.merge(null), { hostname: 'www.instagram.com', pathname: '/reels/audio/123/' }) === null);
+  const ig = path => w.BFX_ENGINE.redirectFor(S.merge(null), { hostname: 'www.instagram.com', pathname: path });
+  ok('with Reels on, the Reels tab sends you to the feed', ig('/reels/') === '/' && ig('/reels') === '/');
+  ok('…but a single reel, from a message or a link, still opens', ig('/reels/CCC/') === null && ig('/reel/CCC/') === null && ig('/reels/audio/123/') === null);
+  const dm = boot(html, 'https://www.instagram.com/direct/t/123/');
+  dm.BFX_ENGINE.apply(dm.BFX_STORE.merge({ keywords: { enabled: true, terms: ['crypto'] } }));
+  await frame();
+  const dmHidden = Array.from(dm.document.querySelectorAll('article[data-bfx-hidden-by], article [data-bfx-hidden-by]'));
+  ok('in messages nothing is hidden: a reel or a word someone sent you is yours to see', !dmHidden.length,
+    dmHidden.map(e => e.id + ':' + e.getAttribute('data-bfx-hidden-by')).join());
 
   w.BFX_ENGINE.apply(only(['suggested']));
   await frame();
