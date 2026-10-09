@@ -14,7 +14,7 @@
   'use strict';
 
   var KEY = 'bfx';
-  var APP = 'BlockDistractXrn';
+  var APP = 'xrnsocial';
 
   var DEFAULTS = {
     enabled: true,
@@ -177,11 +177,14 @@
   }
 
   /* Rebuild settings from an exported file field by field, so a hand-edited
-   * or foreign file can only ever produce a well-formed state. Files from
-   * before the rename (app "BlockFB", one site) restore into Facebook.
-   * Throws with a message fit to show the person. */
+   * or foreign file can only ever produce a well-formed state. Files saved
+   * under the extension's earlier names are still ours: "XrnSocial" and
+   * "BlockDistractXrn" (same shape as today's) and "BlockFB" (one site,
+   * restored into Facebook). Throws with a message fit to show the person. */
+  var OLD_APPS = ['XrnSocial', 'BlockDistractXrn', 'BlockFB'];
+
   function fromBackup(data) {
-    var s = data && (data.app === APP || data.app === 'BlockFB') ? data.settings : data;
+    var s = data && (data.app === APP || OLD_APPS.indexOf(data.app) !== -1) ? data.settings : data;
     if (!s || typeof s !== 'object' || Array.isArray(s) ||
         !('sites' in s || 'presets' in s || 'custom' in s || 'keywords' in s)) {
       throw new Error('This file does not contain ' + APP + ' settings.');

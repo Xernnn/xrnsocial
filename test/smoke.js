@@ -379,7 +379,7 @@ const restored = BFX_STORE.fromBackup(JSON.parse(JSON.stringify(BFX_STORE.toBack
 ok('a backup restores to the same settings', JSON.stringify(restored) === JSON.stringify(mine));
 let threw = null;
 try { BFX_STORE.fromBackup({ hello: 'world' }); } catch (e) { threw = e.message; }
-ok('a file that is not a backup is refused', /does not contain BlockDistractXrn settings/.test(threw || ''), threw);
+ok('a file that is not a backup is refused', /does not contain xrnsocial settings/.test(threw || ''), threw);
 const cleaned = BFX_STORE.fromBackup({
   presets: { stories: 'yes', feed: true },
   custom: [{ selector: 'div}body{color:red' }, { selector: 'a[href^="/x"]', scope: 'weird' }, null],
@@ -432,6 +432,10 @@ ok('with Facebook switched off its pages get no rules',
   window.document.getElementById('bfx-style').textContent.split('\n').every(l => l.startsWith('[data-bfx-hidden-by]')));
 const legacy = BFX_STORE.fromBackup({ app: 'BlockFB', version: 1, settings: { presets: { stories: true }, custom: [], keywords: { enabled: true, terms: ['x'] } } });
 ok('an old BlockFB backup restores into Facebook', legacy.sites.facebook.presets.stories === true && legacy.keywords.terms[0] === 'x');
+for (const app of ['XrnSocial', 'BlockDistractXrn']) {
+  const renamed = BFX_STORE.fromBackup(Object.assign(BFX_STORE.toBackup(mine), { app }));
+  ok('a backup saved as ' + app + ' restores the same settings', JSON.stringify(renamed) === JSON.stringify(mine));
+}
 const v2 = BFX_STORE.fromBackup(BFX_STORE.toBackup(Object.assign(BFX_STORE.merge(null), { sites: { facebook: { enabled: false, presets: { feed: true }, custom: [] }, nowhere: { presets: { a: true } } } })));
 ok('a new backup restores per site, and drops sites that do not exist', v2.sites.facebook.enabled === false &&
   v2.sites.facebook.presets.feed === true && !('nowhere' in v2.sites));

@@ -398,7 +398,7 @@
       root.BFX_STORE.site(s, siteId).custom.push(rule);
       return s;
     }).then(function () {
-      toast('Hidden “' + rule.label + '” — undo from the BlockDistractXrn popup');
+      toast('Hidden “' + rule.label + '” — undo from the xrnsocial popup');
       if (onDone) onDone(rule);
     });
   }

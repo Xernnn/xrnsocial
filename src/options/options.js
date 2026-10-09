@@ -63,7 +63,7 @@ el.exportBtn.addEventListener('click', function () {
     var json = JSON.stringify(store.toBackup(s), null, 2);
     var a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-    a.download = 'blockdistractxrn-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    a.download = 'xrnsocial-backup-' + new Date().toISOString().slice(0, 10) + '.json';
     document.body.appendChild(a);
     a.click();
     a.remove();

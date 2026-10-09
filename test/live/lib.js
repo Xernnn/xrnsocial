@@ -16,7 +16,7 @@ const puppeteer = require('puppeteer-core');
 
 const ROOT = path.join(__dirname, '..', '..');
 const PORT = Number(process.env.LIVE_PORT || 9333);
-const APP = 'BlockDistractXrn';
+const APP = 'xrnsocial';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /* The site list, read the way the extension reads it. */
@@ -73,7 +73,7 @@ async function contentWorld(page) {
   client.on('Runtime.executionContextCreated', e => contexts.push(e.context));
   await client.send('Runtime.enable');
   await sleep(300);
-  for (const c of contexts.filter(c => /BlockFB|BlockDistractXrn/.test(c.name)).reverse()) {
+  for (const c of contexts.filter(c => /xrnsocial|BlockDistractXrn|BlockFB/i.test(c.name)).reverse()) {
     const r = await client.send('Runtime.evaluate', { contextId: c.id, expression: 'typeof BFX_STORE', returnByValue: true }).catch(() => null);
     if (r && r.result && r.result.value === 'object') {
       return async expr => {
@@ -108,7 +108,7 @@ async function reloadExtension(browser) {
   await tab.goto('chrome://extensions/');
   await sleep(500);
   const ok = await tab.evaluate(name => new Promise(res => chrome.management.getAll(list => {
-    const ext = list.find(e => e.name === name || /BlockFB/.test(e.name));
+    const ext = list.find(e => e.name === name || /BlockFB|BlockDistractXrn/.test(e.name));
     if (!ext) return res(false);
     chrome.management.setEnabled(ext.id, false, () => setTimeout(() => chrome.management.setEnabled(ext.id, true, () => res(ext.id)), 300));
   })), APP);
