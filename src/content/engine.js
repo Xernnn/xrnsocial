@@ -282,7 +282,7 @@
 
   function hide(el, why, note) {
     if (!el || el.hasAttribute(BY)) return;
-    var text = note && state && state.placeholders ? 'Hidden by BlockDistractXrn · ' + note + ' — click to show' : null;
+    var text = note && state && state.placeholders ? 'Hidden by xrnsocial · ' + note + ' — click to show' : null;
     mark(el, why, text);
     el.__bfxHide = { why: why, note: text };
     hiddenEls.add(el);

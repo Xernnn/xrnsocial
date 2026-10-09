@@ -1,4 +1,4 @@
-/* The sites BlockDistractXrn works on, and the registry their rule packs join.
+/* The sites xrnsocial works on, and the registry their rule packs join.
  *
  * Each site's rules live in src/sites/<id>.js and register themselves here.
  * This file holds only the site list and what every pack shares, so the
@@ -93,7 +93,7 @@
       };
     },
 
-    /* `post` is the site's selector for one post. The "show" bars BlockDistractXrn
+    /* `post` is the site's selector for one post. The "show" bars xrnsocial
      * leaves behind are not blurred: they are meant to be read. */
     blur: function (post) {
       return {

@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "BlockDistractXrn",
+  "name": "xrnsocial",
   "version": "2.0.0",
   "description": "Switch off the distracting parts of Facebook, Reddit, X, LinkedIn, Instagram, TikTok and Twitch: ads, suggestions, reels, sidebars — or point and click to hide anything else.",
   "permissions": [
@@ -20,7 +20,7 @@
   ],
   "action": {
     "default_popup": "src/popup/popup.html",
-    "default_title": "BlockDistractXrn",
+    "default_title": "xrnsocial",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -91,12 +91,12 @@
       "suggested_key": {
         "default": "Alt+Shift+B"
       },
-      "description": "Pause or resume every BlockDistractXrn rule"
+      "description": "Pause or resume every xrnsocial rule"
     }
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "blockdistractxrn@sonn.dev",
+      "id": "xrnsocial@sonn.dev",
       "strict_min_version": "128.0"
     }
   }

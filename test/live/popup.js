@@ -31,7 +31,7 @@ const ok = (label, cond, detail) => { if (!cond) failures++; console.log((cond ?
      * open the tab as well. */
     const ext = await workTab(browser, 'chrome://extensions/');
     await sleep(500);
-    const extId = await ext.evaluate(app => new Promise(r => chrome.management.getAll(l => r((l.find(e => e.name === app) || {}).id))), 'BlockDistractXrn');
+    const extId = await ext.evaluate(app => new Promise(r => chrome.management.getAll(l => r((l.find(e => e.name === app) || {}).id))), 'xrnsocial');
     const url = 'chrome-extension://' + extId + '/src/popup/popup.html';
     await ext.goto('chrome-extension://' + extId + '/src/options/options.html');
     const { windowId } = await (await page.createCDPSession()).send('Browser.getWindowForTarget');

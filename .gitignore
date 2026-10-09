@@ -1,5 +1,26 @@
+# Dependencies
 node_modules/
-blockfb.zip
-blockdistractxrn.zip
+
+# Build output (npm run zip)
+*.zip
+
+# Your own saved Facebook pages, and settings a live check is holding
 test/fixtures/snapshots/*.html
 test/live/.saved-settings.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# Local environment
+.env
+.env.*
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
