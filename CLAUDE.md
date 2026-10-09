@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-xrnsocial (formerly BlockDistractXrn, and before that BlockFB) is a Manifest V3 Chrome/Edge extension that hides the distracting parts of social sites: presets, a point-and-click picker and keyword blocks. Facebook, Reddit, X, LinkedIn, Instagram and Twitch are done, one rule pack per site. TikTok has a pack for what could be mapped signed out; its ads still need measuring on a signed-in feed. There is no build step, no bundler, and no runtime dependencies. `jsdom` and `puppeteer-core` are only used by the tests. `main` is the default branch on GitHub (Xernnn/xrnsocial); the multi-site work was merged into it in October 2026. Internal names keep the old `bfx` prefix (storage key `bfx`, `data-bfx-*` attributes, `BFX_*` globals); renaming them would reset users' settings.
+xrnsocial (formerly BlockDistractXrn, and before that BlockFB) is a Manifest V3 Chrome/Edge extension that hides the distracting parts of social sites: presets, a point-and-click picker and keyword blocks. Facebook, Reddit, X, LinkedIn, Instagram and Twitch are done, one rule pack per site. TikTok has a pack for what could be mapped signed out; its ads still need measuring on a signed-in feed. There is no build step, no bundler, and no runtime dependencies. `jsdom` and `puppeteer-core` are only used by the tests. All work is on `main`, the only branch (GitHub: Xernnn/xrnsocial). Internal names keep the old `bfx` prefix (storage key `bfx`, `data-bfx-*` attributes, `BFX_*` globals); renaming them would reset users' settings.
 
 ## Commands
 
