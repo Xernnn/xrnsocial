@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "xrnsocial",
   "version": "2.0.0",
-  "description": "Switch off the distracting parts of Facebook, Reddit, X, LinkedIn, Instagram, TikTok and Twitch: ads, suggestions, reels, sidebars — or point and click to hide anything else.",
+  "description": "Switch off the distracting parts of Facebook, Reddit, X, LinkedIn, Instagram, TikTok, Twitch, pixiv and MangaDex: ads, suggestions, reels, sidebars — or point and click to hide anything else.",
   "permissions": [
     "storage",
     "activeTab"
@@ -16,7 +16,9 @@
     "*://*.linkedin.com/*",
     "*://*.instagram.com/*",
     "*://*.tiktok.com/*",
-    "*://*.twitch.tv/*"
+    "*://*.twitch.tv/*",
+    "*://*.pixiv.net/*",
+    "*://*.mangadex.org/*"
   ],
   "action": {
     "default_popup": "src/popup/popup.html",
@@ -57,7 +59,9 @@
         "*://*.linkedin.com/*",
         "*://*.instagram.com/*",
         "*://*.tiktok.com/*",
-        "*://*.twitch.tv/*"
+        "*://*.twitch.tv/*",
+        "*://*.pixiv.net/*",
+        "*://*.mangadex.org/*"
       ],
       "js": [
         "src/common/sites.js",
@@ -68,6 +72,8 @@
         "src/sites/instagram.js",
         "src/sites/twitch.js",
         "src/sites/tiktok.js",
+        "src/sites/pixiv.js",
+        "src/sites/mangadex.js",
         "src/common/storage.js",
         "src/content/engine.js",
         "src/content/picker.js",

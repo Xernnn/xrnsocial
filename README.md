@@ -4,7 +4,8 @@ A browser extension that hides the distracting parts of social sites: ads,
 suggested posts, Reels, sidebars, counts and red badges. Switch off what you
 don't want, or click anything else on the page to hide it too.
 
-It works on **Facebook, Reddit, X, LinkedIn, Instagram, Twitch and TikTok**,
+It works on **Facebook, Reddit, X, LinkedIn, Instagram, Twitch, TikTok, pixiv
+and MangaDex**,
 in Chrome, Edge, Brave, Firefox and other Chromium or Firefox browsers.
 
 Nothing leaves your browser: no network requests, no analytics, no accounts.
@@ -12,17 +13,22 @@ Nothing leaves your browser: no network requests, no analytics, no accounts.
 ## Features
 
 - **Switches for each site.** Ready-made rules grouped by where things are
-  (Ads, Feed, Inside posts, Sidebars, Top bar…). Changes apply at once to
-  every open tab, with no reload.
+  (Ads, Feed, Posts, Sidebars, Top bar…). Open a group for its switches, or
+  turn the whole group off and on in one go: it remembers what you had on.
+  Changes apply at once to every open tab, with no reload.
 - **Picker.** Press `Alt+Shift+H` (or use the popup) and click anything to
   hide it. Picking a whole post hides posts from that author, page or
   community.
 - **Word blocks.** Hide posts containing a word, or a `/regex/i`.
 - **"Show" bars.** If you like, a hidden post can leave a one-line bar that
   you click to bring the post back.
-- **Pause.** `Alt+Shift+B` pauses and resumes every rule.
+- **Pause.** `Alt+Shift+B`, or the switch on the Sites screen, pauses and
+  resumes every rule.
 - **Match counts.** The popup shows how many things each switch is hiding
   on the current page, and flags picked rules that no longer match.
+- **A popup that shows what it's doing.** A site xrnsocial is working on
+  wears xrnsocial's colours, with the site's symbol in white. Switch the site
+  off or pause, and it gets its own logo back.
 - **Backup and restore.** All settings go into one file and come back from
   it.
 
@@ -37,6 +43,8 @@ Nothing leaves your browser: no network requests, no analytics, no accounts.
 | Instagram | 13 | 3 | Checked on the live site, October 2026 |
 | Twitch | 14 | 4 | Checked on the live site, October 2026 |
 | TikTok | 7 | 1 | Partial: mapped while signed out, no ad switch yet |
+| pixiv | 4 | 2 | Checked on the live site while signed out, computer and phone layouts, November 2026 |
+| MangaDex | 9 | 2 | Checked on the live site while signed out, November 2026 |
 
 Out of the box, every site hides its ads and red unread badges. Facebook also
 hides Reels, suggested posts and "people you may know". Reddit hides
@@ -166,6 +174,9 @@ all of them.
 - **Some switches depend on words in the page.** A few Facebook switches
   outside the feed (Marketplace, Notifications, chat) read English labels.
   LinkedIn ads are found by their "Promoted" label, matched in 14 languages.
+- **pixiv** was measured signed out, so the home feed you see when signed in
+  is unmapped. Ads there use the same frames and should go, but its sections
+  have no switches yet.
 - **Instagram:** only the home feed is mapped, so ads in Stories, Explore and
   the Reels tab aren't covered.
 - **Reddit:** the picker can't reach inside Reddit's own components (votes,
@@ -181,7 +192,7 @@ src/common/      site list and settings storage, shared by every page
 src/sites/       one rule pack per site
 src/content/     engine, picker, and the bootstrap that runs on each site
 src/background/  keyboard shortcuts and the toolbar badge
-src/popup/       the popup
+src/popup/       the popup, with each site's icons in src/popup/sites/
 src/options/     backup and restore
 scripts/zip.js   packs the extension (npm run zip)
 test/            jsdom, Chrome and Firefox tests, with fixture pages
@@ -195,3 +206,6 @@ BlockDistractXrn. Backups saved under either name still restore.
 ## License
 
 [MIT](LICENSE)
+
+The site logos in `src/popup/sites/` are trademarks of their owners and are
+here only to name the sites. xrnsocial has no connection with any of them.

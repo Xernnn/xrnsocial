@@ -52,14 +52,14 @@
     {
       id: 'suggested',
       group: 'Feed',
-      label: 'Posts from accounts you don\'t follow',
+      label: "Strangers' posts",
       desc: '"Suggested for you" and everything else with a Follow button on it. Often most of the feed once you have seen your follows.',
       js: { kind: 'suggested' }
     },
     {
       id: 'videoPosts',
       group: 'Feed',
-      label: 'All video posts',
+      label: 'All videos',
       desc: 'Every post with a video in it — the whole post, not just the player.',
       css: [POST + ':has(video)']
     },
@@ -73,19 +73,19 @@
     /* --------------------------------------------------------- posts ---- */
     {
       id: 'postActions',
-      group: 'Inside posts',
-      label: 'Like / comment / share bar',
+      group: 'Posts',
+      label: 'Action bar',
       desc: 'The row of buttons under every post.',
       css: [POST + ' div > section:first-of-type']
     },
     {
       id: 'counts',
-      group: 'Inside posts',
-      label: 'Like and comment counts',
+      group: 'Posts',
+      label: 'Counts',
       desc: 'The numbers beside the buttons and the "Liked by …" line, not the buttons.',
       css: [POST + ' div > section:first-of-type span[role="button"]', POST + ' div > section:nth-of-type(2)']
     },
-    SITES.common.noAutoplay('Inside posts', 'Videos in the feed stay paused while you scroll past. Click one and it plays as normal.'),
+    SITES.common.noAutoplay('Posts', 'Videos in the feed stay paused while you scroll past. Click one and it plays as normal.'),
 
     /* ------------------------------------------------------ sidebars ---- */
     {

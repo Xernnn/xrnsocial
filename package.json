@@ -2,7 +2,7 @@
   "name": "xrnsocial",
   "version": "2.0.0",
   "private": true,
-  "description": "Chrome extension that switches off the distracting parts of Facebook, Reddit, X, LinkedIn, Instagram, TikTok and Twitch.",
+  "description": "Chrome extension that switches off the distracting parts of Facebook, Reddit, X, LinkedIn, Instagram, TikTok, Twitch, pixiv and MangaDex.",
   "scripts": {
     "test": "node test/smoke.js",
     "test:browser": "node test/browser.js",

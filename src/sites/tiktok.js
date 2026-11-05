@@ -21,31 +21,31 @@
   var PRESETS = [
     {
       id: 'upsells',
-      group: 'Promotions',
+      group: 'Ads',
       on: true,
-      label: '"Get coins" and CapCut tags',
+      label: 'Coins and CapCut',
       desc: 'TikTok\'s own promotions: the coins offer in the top bar and the CapCut link on videos.',
       css: ['[data-e2e="top-right-action-bar-get-coin"]', '[data-e2e="capcut-tag"]']
     },
     {
       id: 'counts',
-      group: 'Inside videos',
-      label: 'Like, comment, save and share counts',
+      group: 'Videos',
+      label: 'Counts',
       desc: 'Hides the numbers under the side buttons, not the buttons.',
       css: ['[data-e2e="like-count"]', '[data-e2e="comment-count"]', '[data-e2e="favorite-count"]', '[data-e2e="share-count"]']
     },
     {
       id: 'music',
-      group: 'Inside videos',
+      group: 'Videos',
       label: 'Sound links',
       desc: 'The "original sound" link under each video.',
       css: ['[data-e2e="video-music"]']
     },
-    SITES.common.noAutoplay('Inside videos', 'Videos stay paused until you click one. For You stops playing by itself as you scroll.'),
+    SITES.common.noAutoplay('Videos', 'Videos stay paused until you click one. For You stops playing by itself as you scroll.'),
     {
       id: 'navExtras',
       group: 'Menu',
-      label: 'LIVE and Short dramas',
+      label: 'LIVE and dramas',
       desc: 'Those two entries in the left menu.',
       css: ['[data-e2e="nav-live"]', '[data-e2e="nav-short-drama"]']
     },

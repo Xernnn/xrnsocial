@@ -1,0 +1,50 @@
+<!doctype html>
+<!-- mangadex.org as it was built in November 2026 (signed out), cut down to
+     the parts the MangaDex pack keys on: the home page and a list of chapters
+     in one document. Structure copied from the live site; every title is
+     made up. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>MangaDex</title></head>
+<body style="margin:0;font:14px sans-serif">
+<div id="app"><div class="flex grow text-color">
+  <div class="flex flex-col bg-accent h-screen"><div class="drawer"><div class="lg:top-0 lg:sticky flex flex-col">
+    <div id="section-Titles" class="px-4 pt-2 flex flex-col shrink-0">
+      <a id="section-link-_titles_recent" class="shrink-0" href="/titles/recent">Recently Added</a>
+      <a id="section-link-_titles_latest" class="shrink-0" href="/titles/latest">Latest Updates</a>
+    </div>
+    <div id="section-MangaDex" class="px-4 pt-2 flex flex-col shrink-0">
+      <a id="section-link-_about" class="shrink-0" href="/about">About Us</a>
+      <a id="section-link-_advertise" class="shrink-0" href="/advertise">Advertise</a>
+    </div>
+  </div></div></div>
+
+  <div class="flex flex-col grow"><div class="md-content grow">
+    <div class="relative fixed p-0! m-0!" id="popular" style="height:300px"><div><div class="swiper swiper-initialized"><div class="swiper-wrapper"><div class="swiper-slide swiper-slide-active"><a class="flex relative h-full" href="/title/11111111-1111-4111-8111-111111111111/hero"><div class="absolute banner-bg inset-0"></div><h2>Hero Title</h2></a></div></div></div></div></div>
+
+    <div class="page-container wide -mt-16! sm:-mt-8! space-y-8" id="home">
+      <div class="mt-4" id="ad-box"><div class="flex items-center justify-center" id="ad-inner"><a id="placeholder"><img class="max-h-64" src="/temp/placeholder/5_Banner_Ad_xl.png" alt="5_Banner_Ad_xl"></a></div></div>
+      <div class="mt-4" id="ad-video-box"><div class="flex items-center justify-center"><a id="anime-gifs" href="https://example.com/?utm_source=mangadex" target="_blank"><video class="max-h-64" autoplay muted loop playsinline><source src="/temp/anime-gifs/xl_1280x256.webm" type="video/webm"></video></a></div></div>
+      <div class="header" id="sec-latest">
+        <div class="flex justify-between items-center"><h2>Latest Updates</h2><a aria-label="View last updated titles" href="/titles/latest">more</a></div>
+        <div class="chapter-feed__container details mb-4" id="feed-1">
+          <a class="chapter-feed__cover" href="/title/22222222-2222-4222-8222-222222222222/quiet-lake"><img alt="" src="data:,"></a>
+          <a class="chapter-feed__title" href="/title/22222222-2222-4222-8222-222222222222/quiet-lake">Quiet Lake</a>
+          <div class="chapter-feed__chapters-list"><div><div class="chapter relative read"><div class="flex"><a class="chapter-grid grow" href="/chapter/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa">Ch. 3</a></div><button class="comment-container hover justify-self-start" id="comment-1">4</button></div></div></div>
+        </div>
+        <div class="chapter-feed__container details mb-4" id="feed-2">
+          <a class="chapter-feed__cover" href="/title/33333333-3333-4333-8333-333333333333/giveaway-king"><img alt="" src="data:,"></a>
+          <a class="chapter-feed__title" href="/title/33333333-3333-4333-8333-333333333333/giveaway-king">Giveaway King</a>
+        </div>
+      </div>
+      <div class="header md:overflow-hidden" id="sec-recommended"><div class="flex justify-between items-center"><h2>Recommended</h2><a aria-label="View recommended title list" href="/titles/recommended">more</a></div><a href="/title/44444444-4444-4444-8444-444444444444/one">One</a></div>
+      <div class="header md:overflow-hidden" id="sec-self"><div class="flex justify-between items-center"><h2>Self-Published</h2><a aria-label="View self-published title list" href="/titles/selfpublished">more</a></div></div>
+      <div class="md:overflow-hidden" id="sec-seasonal"><div class="flex justify-between items-center"><h2>Seasonal</h2><a aria-label="Open list Seasonal" href="/titles/seasonal">more</a></div></div>
+      <div class="header md:overflow-hidden" id="sec-recent"><div class="flex justify-between items-center"><h2>Recently Added</h2><a aria-label="View most recently added titles" href="/titles/recent">more</a></div></div>
+      <div class="grid gap-2 two-col" id="cards">
+        <div class="manga-card" id="card-1"><a class="manga-card-cover" href="/title/55555555-5555-4555-8555-555555555555/lantern"><img alt="" src="data:,"></a><a class="font-bold title" href="/title/55555555-5555-4555-8555-555555555555/lantern">Lantern Street</a></div>
+      </div>
+    </div>
+  </div></div>
+</div></div>
+</body>
+</html>

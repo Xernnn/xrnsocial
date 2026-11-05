@@ -46,7 +46,7 @@
       id: 'sponsored',
       group: 'Ads',
       on: true,
-      label: 'Sponsored posts in the feed',
+      label: 'Feed ads',
       desc: 'Facebook marks every feed ad with a hidden character and an "Ad" label. Both are checked, so ads go before they are drawn.',
       /* Not data-ad-preview or data-ad-rendering-role: despite the names,
        * Facebook renders ordinary posts through the same story template, so
@@ -70,14 +70,14 @@
       id: 'adSweep',
       group: 'Ads',
       on: true,
-      label: 'Ads in Marketplace, search & Watch',
+      label: 'Marketplace ads',
       desc: 'Marketplace, search results, groups — any card labelled Ad or Sponsored outside the feed. Hides that one card, not the grid around it.',
       js: { kind: 'sweep' }
     },
     {
       id: 'paidPartnership',
       group: 'Ads',
-      label: 'Paid partnership posts',
+      label: 'Paid posts',
       desc: 'Branded content from pages you actually follow. Off by default — it is advertising, but you asked for the page.',
       js: {
         kind: 'feedText',
@@ -97,7 +97,7 @@
     {
       id: 'feed',
       group: 'Feed',
-      label: 'The entire News Feed',
+      label: 'Whole feed',
       desc: 'Nuclear option. Leaves the rest of Facebook usable for messages, groups and events.',
       /* The posts go at once; the engine then hides the box around them, so
        * the loading skeleton below stops pulling in more. */
@@ -106,7 +106,7 @@
     {
       id: 'stories',
       group: 'Feed',
-      label: 'Stories tray',
+      label: 'Stories',
       desc: 'The horizontal story carousel above the feed.',
       css: [
         'div[data-focus-target="stories_tray"]',
@@ -118,7 +118,7 @@
     {
       id: 'videoPosts',
       group: 'Feed',
-      label: 'All video posts',
+      label: 'All videos',
       desc: 'Every post with a video in it — the whole post, not just the player. Shared videos and reels included.',
       /* :has() keeps up as Facebook swaps a thumbnail for the player. Not in
        * a dialog: a video post you opened yourself stays. */
@@ -134,7 +134,7 @@
       id: 'reels',
       group: 'Feed',
       on: true,
-      label: 'Reels & short videos',
+      label: 'Reels',
       desc: 'Reels rows injected between posts, the Reels rail, links to reels anywhere — and opening a reel sends you back to the feed.',
       css: [
         'div[data-pagelet="VideoChainingFeedUnit"]',
@@ -168,7 +168,7 @@
     {
       id: 'composer',
       group: 'Feed',
-      label: "The “What’s on your mind?” box",
+      label: 'Post box',
       desc: 'Post composer at the top of the feed and of profiles.',
       css: [
         'div[data-pagelet="ProfileComposer"]',
@@ -181,7 +181,7 @@
       id: 'suggested',
       group: 'Feed',
       on: true,
-      label: 'Suggested / recommended posts',
+      label: 'Suggested posts',
       desc: 'Posts from pages, people and groups you do not follow — the ones with a Follow or Join button next to the name.',
       js: {
         kind: 'suggested',
@@ -201,7 +201,7 @@
       id: 'pymk',
       group: 'Feed',
       on: true,
-      label: 'People / pages / groups you may know',
+      label: 'People you may know',
       desc: 'Friend and group suggestion blocks wherever they appear in the feed.',
       js: {
         kind: 'recommendations',
@@ -220,7 +220,7 @@
     {
       id: 'reactionsOnPosts',
       group: 'Feed',
-      label: 'Friend activity ("X commented on this")',
+      label: 'Friend activity',
       desc: 'Posts that only reached you because a friend reacted, commented or was tagged.',
       js: {
         kind: 'feedText',
@@ -241,8 +241,8 @@
     /* --------------------------------------------------------- posts ---- */
     {
       id: 'postActions',
-      group: 'Inside posts',
-      label: 'Like / Comment / Share bar',
+      group: 'Posts',
+      label: 'Action bar',
       desc: 'Removes the action row at the bottom of every post.',
       /* "The smallest box holding both buttons" needs :has() inside :has(),
        * which Chrome rejects, so the engine finds the row instead. */
@@ -250,8 +250,8 @@
     },
     {
       id: 'counts',
-      group: 'Inside posts',
-      label: 'Reaction, comment & share counts',
+      group: 'Posts',
+      label: 'Counts',
       desc: 'Hides the numbers without hiding the buttons.',
       css: [
         /* The reaction icons, and the numbers inside the Like, Comment and
@@ -263,8 +263,8 @@
     },
     {
       id: 'comments',
-      group: 'Inside posts',
-      label: 'Comment threads',
+      group: 'Posts',
+      label: 'Comments',
       desc: 'Existing comments and the reply box under each post.',
       css: [
         /* Comments are role="article" with a "Comment by ..." label; loading
@@ -275,11 +275,11 @@
         '[aria-label^="Write a comment"]'
       ]
     },
-    SITES.common.noAutoplay('Inside posts', 'Feed videos stay paused while you scroll past. Click one and it plays as normal.'),
+    SITES.common.noAutoplay('Posts', 'Feed videos stay paused while you scroll past. Click one and it plays as normal.'),
     {
       id: 'media',
-      group: 'Inside posts',
-      label: 'Images & video in posts',
+      group: 'Posts',
+      label: 'Images & video',
       desc: 'Keeps the text, drops the pictures. Surprisingly readable.',
       css: [
         /* Albums sit in an aspect-ratio box (inline padding-top) that keeps
@@ -300,14 +300,14 @@
     {
       id: 'leftRail',
       group: 'Sidebars',
-      label: 'Left sidebar',
+      label: 'Left',
       desc: 'Shortcuts, Memories, Saved, Ads Manager and the rest of the left column.',
       css: ['div[data-pagelet="LeftRail"]', 'div[role="navigation"][aria-label="Shortcuts"]']
     },
     {
       id: 'rightRail',
       group: 'Sidebars',
-      label: 'Right sidebar',
+      label: 'Right',
       desc: 'Sponsored column, birthdays, contacts and group chats.',
       css: ['div[data-pagelet="RightRail"]', 'div[role="complementary"]']
     },
@@ -326,7 +326,7 @@
     {
       id: 'contacts',
       group: 'Sidebars',
-      label: 'Contacts & group chats',
+      label: 'Contacts',
       desc: 'Keeps the right sidebar, hides who is online.',
       css: [
         'div[role="complementary"] div[data-visualcompletion="ignore-dynamic"]:has(ul)',
@@ -338,7 +338,7 @@
     {
       id: 'search',
       group: 'Top bar',
-      label: 'Search box',
+      label: 'Search',
       /* The rounded box is the label wrapped around the input; hiding only
        * the input leaves the empty box. */
       css: [
@@ -350,7 +350,7 @@
     {
       id: 'navTabs',
       group: 'Top bar',
-      label: 'Top bar tabs (all)',
+      label: 'All tabs',
       desc: 'Home, Reels, Friends, Marketplace, Gaming.',
       css: ['div[role="banner"] div[role="navigation"]:has(a[aria-label="Home"])']
     },
@@ -363,7 +363,7 @@
     {
       id: 'watch',
       group: 'Top bar',
-      label: 'Video / Watch',
+      label: 'Watch',
       desc: 'Most accounts no longer have this tab; harmless to leave on.',
       css: ['a[aria-label="Video"]', 'a[aria-label="Watch"]', 'a[href^="/watch"]']
     },
@@ -376,7 +376,7 @@
     {
       id: 'notifications',
       group: 'Top bar',
-      label: 'Notifications bell',
+      label: 'Bell',
       /* The label carries the unread count: "Notifications, 3 unread". */
       css: [
         'div[role="banner"] [role="button"][aria-label^="Notifications"]',
@@ -386,7 +386,7 @@
     {
       id: 'messengerIcon',
       group: 'Top bar',
-      label: 'Messenger icon',
+      label: 'Messenger',
       /* Like the bell, the label carries the count: "Messenger, 1 unread". */
       css: [
         'div[role="banner"] [role="button"][aria-label^="Messenger"]',
@@ -406,7 +406,7 @@
     {
       id: 'chatTabs',
       group: 'Chat',
-      label: 'Chat bubbles / popup windows',
+      label: 'Chat windows',
       desc: 'The round chat heads down the right edge, and open chat windows.',
       css: [
         /* The round chat heads down the right edge. */
@@ -419,7 +419,7 @@
     {
       id: 'activeNow',
       group: 'Chat',
-      label: 'Green "active now" dots',
+      label: 'Active dots',
       desc: 'On avatars in posts, in the contacts list and on chat heads.',
       /* The dot, by shape: the "Online status indicator" text in an ignored
        * span, followed by the coloured ring. Same in the contacts list, on
@@ -436,7 +436,7 @@
     {
       id: 'narrowFeed',
       group: 'Effects',
-      label: 'Center the feed',
+      label: 'Center feed',
       desc: 'Once the sidebars are gone, pull the column back into the middle.',
       style: 'div[role="main"] { margin-inline: auto !important; }'
     }

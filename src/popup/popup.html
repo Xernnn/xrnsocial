@@ -2,78 +2,111 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>xrnsocial</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-  <header class="head">
-    <span class="logo">B</span>
-    <div class="brand">
-      <strong>xrnsocial</strong>
-      <span class="sub" id="status">loading…</span>
-    </div>
-    <label class="switch big" title="Turn every rule on every site on or off">
-      <input type="checkbox" id="master" />
-      <span class="track"></span>
-    </label>
-  </header>
-
-  <button class="pick" id="pick" title="Point at anything on the page and click to hide it">
-    <span class="pick-icon">⌖</span>
-    <b>Pick something to hide</b>
-    <kbd id="pickKey">Alt+Shift+H</kbd>
-  </button>
-
-  <nav class="sites" id="sites" aria-label="Site"></nav>
-
-  <nav class="tabs">
-    <button class="tab is-on" data-tab="presets">Blocks</button>
-    <button class="tab" data-tab="custom">Picked <span class="pill" id="customCount">0</span></button>
-    <button class="tab" data-tab="words">Words</button>
-  </nav>
-
-  <section class="panel is-on" data-panel="presets">
-    <div class="row master-row" id="siteRow">
-      <div class="row-text"><b id="siteLabel">Use on this site</b></div>
-      <label class="switch">
+  <main class="view is-on" data-view="home">
+    <header class="hero">
+      <button class="hero-site" id="siteButton" type="button" title="Choose a site">
+        <img class="site-icon" id="siteIcon" alt="" width="60" height="60" />
+        <span class="hero-text">
+          <span class="hero-name">
+            <span id="siteName"></span>
+            <svg class="i" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+          </span>
+          <span class="tally"><span class="num" id="tallyNum" hidden></span><span id="tallyWord">Loading</span></span>
+        </span>
+      </button>
+      <label class="switch" id="siteSwitch" title="Use xrnsocial on this site">
         <input type="checkbox" id="siteEnabled" />
         <span class="track"></span>
       </label>
-    </div>
-    <input type="search" id="filter" class="filter" placeholder="Search" />
-    <div id="presets"></div>
-  </section>
+      <button class="resume" id="resume" type="button" hidden>Resume</button>
+    </header>
+    <div class="list" id="groups"></div>
+  </main>
 
-  <section class="panel" data-panel="custom">
-    <div id="custom"></div>
-  </section>
-
-  <section class="panel" data-panel="words">
-    <div class="row master-row">
-      <div class="row-text"><b>Hide posts with these words</b></div>
+  <section class="view" data-view="sites">
+    <header class="bar">
+      <button class="back" type="button" aria-label="Back"><svg class="i" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg></button>
+      <h1>Sites</h1>
+    </header>
+    <div class="grid" id="sites"></div>
+    <div class="line line-top" title="Alt+Shift+B">
+      <span class="line-text" id="pausedLabel">Pause all sites</span>
       <label class="switch">
-        <input type="checkbox" id="kwEnabled" />
+        <input type="checkbox" id="paused" aria-labelledby="pausedLabel" />
         <span class="track"></span>
       </label>
     </div>
-    <textarea id="kwTerms" spellcheck="false" placeholder="One per line, e.g.&#10;politics&#10;giveaway"></textarea>
-    <p class="note"><span>All sites · /regex/ works</span><span id="kwCount"></span></p>
+  </section>
 
-    <div class="row" id="phRow" title="Hidden posts leave a thin bar you can click to show them. Ads never do.">
-      <div class="row-text"><b>Leave a "show" bar</b></div>
-      <label class="switch">
-        <input type="checkbox" id="placeholders" />
+  <section class="view" data-view="words">
+    <header class="bar">
+      <button class="back" type="button" aria-label="Back"><svg class="i" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg></button>
+      <h1>Words</h1>
+      <label class="switch" title="Hide posts with these words">
+        <input type="checkbox" id="kwEnabled" aria-label="Hide posts with these words" />
         <span class="track"></span>
       </label>
+    </header>
+    <div class="pane">
+      <form class="add" id="wordForm">
+        <input class="field" id="wordInput" type="text" spellcheck="false" autocomplete="off" placeholder="Add a word" aria-label="Add a word" />
+        <button class="add-button" type="submit" aria-label="Add"><svg class="i" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+      </form>
+      <div class="chips" id="words"></div>
+      <p class="note"><span>Every site. /regex/ works.</span><span id="kwCount"></span></p>
+    </div>
+  </section>
+
+  <section class="view" data-view="picked">
+    <header class="bar">
+      <button class="back" type="button" aria-label="Back"><svg class="i" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg></button>
+      <h1>Picked</h1>
+    </header>
+    <div class="list" id="custom"></div>
+  </section>
+
+  <section class="view" data-view="more">
+    <header class="bar">
+      <button class="back" type="button" aria-label="Back"><svg class="i" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg></button>
+      <h1>More</h1>
+    </header>
+    <div class="list">
+      <div class="line" id="placeholdersRow" title="Hidden posts leave a thin bar you can click to show them. Ads never do.">
+        <span class="line-text" id="placeholdersLabel">Leave a "show" bar</span>
+        <label class="switch">
+          <input type="checkbox" id="placeholders" aria-labelledby="placeholdersLabel" />
+          <span class="track"></span>
+        </label>
+      </div>
+      <button class="line" id="backup" type="button">Back up or restore</button>
+      <button class="line danger" id="reset" type="button">Reset</button>
     </div>
   </section>
 
   <footer class="foot">
-    <span>
-      <button id="backup" class="link">Back up</button>
-      <span class="dot">·</span>
-      <button id="reset" class="link danger">Reset</button>
-    </span>
-    <span id="hidden" class="muted"></span>
+    <button class="pick" id="pick" type="button" title="Point at anything on the page and click to hide it (Alt+Shift+H)">
+      <svg class="i" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M12 8a4 4 0 1 0 0 8a4 4 0 0 0 0-8z"></path></svg>
+      <span id="pickLabel">Hide something</span>
+    </button>
+    <button class="tab" type="button" data-view="words">
+      <svg class="i" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 7V5h16v2M12 5v14M9 19h6"></path></svg>
+      <span>Words</span>
+      <span class="pip" id="wordsPip" hidden></span>
+    </button>
+    <button class="tab" type="button" data-view="picked">
+      <svg class="i" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 6h10M3 12h10M3 18h10M16 13l2.5 2.5L22 11"></path></svg>
+      <span>Picked</span>
+      <span class="pip" id="pickedPip" hidden></span>
+    </button>
+    <button class="tab" type="button" data-view="more">
+      <svg class="i" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 12h.01M12 12h.01M19 12h.01"></path></svg>
+      <span>More</span>
+    </button>
   </footer>
 
   <script src="../common/sites.js"></script>
@@ -84,6 +117,8 @@
   <script src="../sites/instagram.js"></script>
   <script src="../sites/twitch.js"></script>
   <script src="../sites/tiktok.js"></script>
+  <script src="../sites/pixiv.js"></script>
+  <script src="../sites/mangadex.js"></script>
   <script src="../common/storage.js"></script>
   <script src="popup.js"></script>
 </body>

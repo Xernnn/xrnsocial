@@ -59,7 +59,7 @@
       id: 'commentAds',
       group: 'Ads',
       on: true,
-      label: 'Ads in comment threads',
+      label: 'Comment ads',
       desc: 'The ad under a post and the ad slots Reddit threads between comments.',
       css: ['shreddit-comments-page-ad', 'shreddit-comment-tree-ad']
     },
@@ -69,7 +69,7 @@
       id: 'recommended',
       group: 'Feed',
       on: true,
-      label: 'Recommended posts on your home feed',
+      label: 'Recommended posts',
       desc: 'Posts from communities you have not joined, mixed into Home. Popular, All and community pages are left alone.',
       js: { kind: 'recommended' }
     },
@@ -88,7 +88,7 @@
     {
       id: 'videoPosts',
       group: 'Feed',
-      label: 'All video posts',
+      label: 'All videos',
       desc: 'Every post with a video in it — the whole post, not just the player.',
       css: [
         'shreddit-feed > article:has(shreddit-player)',
@@ -106,15 +106,15 @@
     /* --------------------------------------------------------- posts ---- */
     {
       id: 'postActions',
-      group: 'Inside posts',
-      label: 'Vote / comment / share bar',
+      group: 'Posts',
+      label: 'Action bar',
       desc: 'The row under every post in a feed.',
       shadow: [{ host: 'shreddit-post', css: 'rpl-action-bar { display: none !important; }' }]
     },
     {
       id: 'counts',
-      group: 'Inside posts',
-      label: 'Vote and comment counts',
+      group: 'Posts',
+      label: 'Counts',
       desc: 'Hides the numbers on posts and comments without hiding the buttons.',
       shadow: [
         { host: 'shreddit-post', css: 'rpl-action-bar faceplate-number { display: none !important; }' },
@@ -123,16 +123,16 @@
     },
     {
       id: 'comments',
-      group: 'Inside posts',
-      label: 'Comment threads',
+      group: 'Posts',
+      label: 'Comments',
       desc: 'Comments and the comment box on a post\'s page.',
       css: ['shreddit-comment-tree', 'comment-composer-host', 'section[aria-label="Comments"]']
     },
-    SITES.common.noAutoplay('Inside posts', 'Videos in the feed stay paused while you scroll past. Click one and it plays as normal.'),
+    SITES.common.noAutoplay('Posts', 'Videos in the feed stay paused while you scroll past. Click one and it plays as normal.'),
     {
       id: 'media',
-      group: 'Inside posts',
-      label: 'Images & video in posts',
+      group: 'Posts',
+      label: 'Images & video',
       desc: 'Keeps the titles and text, drops the pictures.',
       css: ['shreddit-post > [slot="post-media-container"]', 'shreddit-post > [slot="thumbnail"]']
     },
@@ -141,14 +141,14 @@
     {
       id: 'leftSidebar',
       group: 'Sidebars',
-      label: 'Left sidebar',
+      label: 'Left',
       desc: 'Home, Popular, your communities, custom feeds, games and resources.',
       css: ['flex-left-nav-container', '#left-sidebar-container']
     },
     {
       id: 'rightSidebar',
       group: 'Sidebars',
-      label: 'Right sidebar',
+      label: 'Right',
       desc: 'Recent posts, sidebar ads, and a community\'s about box and rules.',
       css: ['#right-sidebar-container']
     },
@@ -162,7 +162,7 @@
     {
       id: 'games',
       group: 'Sidebars',
-      label: 'Games on Reddit',
+      label: 'Games',
       desc: 'The games section of the left menu and the games badge in the top bar.',
       css: [
         'faceplate-expandable-section-helper:has(summary[aria-controls="games_section"])',
@@ -175,13 +175,13 @@
     {
       id: 'search',
       group: 'Top bar',
-      label: 'Search box',
+      label: 'Search',
       css: ['reddit-search-large']
     },
     {
       id: 'createPost',
       group: 'Top bar',
-      label: 'Create post button',
+      label: 'Create post',
       css: ['create-post-entry-point-wrapper']
     },
     {
@@ -194,7 +194,7 @@
     {
       id: 'advertise',
       group: 'Top bar',
-      label: '"Advertise" buttons',
+      label: 'Advertise',
       desc: 'Reddit\'s pitch to advertisers, in the top bar and the left menu.',
       css: ['advertise-button', 'a#advertise-button', 'a[href^="https://ads.reddit.com"]']
     },

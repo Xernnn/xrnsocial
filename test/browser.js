@@ -48,7 +48,7 @@ function findChrome() {
 /* The preset list, read the same way the extension reads it. */
 function loadPresets(siteId) {
   const sandbox = { self: {} };
-  for (const file of ['src/common/sites.js', 'src/sites/facebook.js', 'src/sites/reddit.js', 'src/sites/x.js', 'src/sites/linkedin.js', 'src/sites/instagram.js', 'src/sites/twitch.js', 'src/sites/tiktok.js']) {
+  for (const file of ['src/common/sites.js', 'src/sites/facebook.js', 'src/sites/reddit.js', 'src/sites/x.js', 'src/sites/linkedin.js', 'src/sites/instagram.js', 'src/sites/twitch.js', 'src/sites/tiktok.js', 'src/sites/pixiv.js', 'src/sites/mangadex.js']) {
     vm.runInNewContext(fs.readFileSync(path.join(root, file), 'utf8'), sandbox);
   }
   return sandbox.self.BFX_SITES.get(siteId || 'facebook').presets;
@@ -100,6 +100,8 @@ async function until(fn, timeout = 3000) {
     const instagramReelsDoc = fs.readFileSync(path.join(fixtures, 'instagram-reels.html'), 'utf8');
     const twitchDoc = fs.readFileSync(path.join(fixtures, 'twitch.html'), 'utf8');
     const tiktokDoc = fs.readFileSync(path.join(fixtures, 'tiktok.html'), 'utf8');
+    const pixivDoc = fs.readFileSync(path.join(fixtures, 'pixiv.html'), 'utf8');
+    const mangadexDoc = fs.readFileSync(path.join(fixtures, 'mangadex.html'), 'utf8');
     const page = await browser.newPage();
     await page.setRequestInterception(true);
     page.on('request', req => {
@@ -118,6 +120,10 @@ async function until(fn, timeout = 3000) {
         req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: twitchDoc });
       } else if (/(^|\.)tiktok\.com$/.test(url.hostname) && req.resourceType() === 'document') {
         req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: tiktokDoc });
+      } else if (/(^|\.)pixiv\.net$/.test(url.hostname) && req.resourceType() === 'document') {
+        req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: pixivDoc });
+      } else if (/(^|\.)mangadex\.org$/.test(url.hostname) && req.resourceType() === 'document') {
+        req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: mangadexDoc });
       } else if (url.protocol === 'http:' || url.protocol === 'https:') {
         req.abort();
       } else {
@@ -291,24 +297,131 @@ async function until(fn, timeout = 3000) {
     const errors = [];
     const popup = await browser.newPage();
     popup.on('pageerror', e => errors.push(e.message));
+    popup.on('dialog', d => d.accept());
     await popup.goto(`chrome-extension://${extId}/src/popup/popup.html`);
-    ok('every preset gets a row', await until(async () =>
-      (await popup.$$eval('#presets .row', rows => rows.length)) === presets.length));
-    ok('the status line counts active rules', /^Facebook: \d+ rules active$/.test(
-      await popup.$eval('#status', n => n.textContent)), await popup.$eval('#status', n => n.textContent));
+    const fbNow = () => sw.evaluate('self.BFX_STORE.get().then(s => s.sites.facebook)');
+    const iconOf = () => popup.$eval('#siteIcon', n => n.getAttribute('src'));
+    const groupNames = [...new Set(presets.map(r => r.group))];
+    ok('every group gets a row', await until(async () =>
+      (await popup.$$eval('#groups .group', rows => rows.length)) === groupNames.length));
+    let rulesShown = 0;
+    for (const name of groupNames) {
+      await popup.click(`.group[data-group="${name}"] .group-main`);
+      rulesShown += await popup.$$eval('#groups .rule', rows => rows.length);
+    }
+    ok('opening each group in turn shows every preset once, one group at a time', rulesShown === presets.length, rulesShown + ' of ' + presets.length);
+    await popup.click(`.group[data-group="${groupNames[groupNames.length - 1]}"] .group-main`);
+    ok('opening a group twice closes it', (await popup.$$eval('#groups .rule', rows => rows.length)) === 0);
+    ok('a group shows one tick for each of its switches', (await popup.$$eval('.group[data-group="Ads"] .tick', t => t.length)) ===
+      presets.filter(r => r.group === 'Ads').length);
+    ok('the hero counts what is on, away from a site', /^\d+$/.test(await popup.$eval('#tallyNum', n => n.textContent)) &&
+      await popup.$eval('#tallyWord', n => n.textContent) === 'on');
+    ok('a site being worked on wears the xrnsocial icon', (await iconOf()) === 'sites/facebook-on.svg', await iconOf());
+    ok('the pick button waits for a site', await popup.$eval('#pick', b => b.disabled && /Open a site/.test(b.textContent)));
+
     await sw.evaluate('self.BFX_STORE.update(s => { s.enabled = false; s.sites.facebook.presets.stories = true; })');
     ok('a change made elsewhere shows up in the open popup', await until(async () =>
-      (await popup.$eval('#status', n => n.textContent)).startsWith('paused')));
-    await popup.click('#master');
+      (await popup.$eval('#tallyWord', n => n.textContent)) === 'Paused'));
+    ok('paused, the site gets its own logo back', (await iconOf()) === 'sites/facebook-off.svg', await iconOf());
+    ok('paused, Resume replaces the site switch', await popup.$eval('#resume', b => !b.hidden) && await popup.$eval('#siteSwitch', b => b.hidden));
+    await popup.click('#resume');
     ok('switching in the popup keeps the other change', await until(() =>
       sw.evaluate('self.BFX_STORE.get().then(s => s.enabled && s.sites.facebook.presets.stories)')));
-    const chips = await popup.$$eval('#sites .site', b => b.map(x => x.textContent));
-    ok('the popup offers each site that has rules', chips.length >= 1 && chips[0] === 'Facebook', JSON.stringify(chips));
+
+    await popup.click('#siteButton');
+    const names = await popup.$$eval('#sites .cell', c => c.map(x => x.dataset.site));
+    ok('the popup offers each site that has rules', names.length === 9 && names[0] === 'facebook', JSON.stringify(names));
+    const brokenIcons = await popup.evaluate(ids => Promise.all(ids.flatMap(id => ['on', 'off'].map(state => new Promise(done => {
+      const img = new Image();
+      img.onload = () => done(img.naturalWidth ? null : id + '-' + state);
+      img.onerror = () => done(id + '-' + state);
+      img.src = 'sites/' + id + '-' + state + '.svg';
+    })))).then(list => list.filter(Boolean)), names);
+    ok('every site icon draws, on and off', brokenIcons.length === 0, brokenIcons.join(', '));
+    await popup.click('#paused');
+    ok('Pause all sites stops everything', await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.enabled === false)')));
+    ok('and every logo goes back to normal', await popup.$$eval('#sites img', list => list.every(i => /-off\.svg$/.test(i.getAttribute('src')))));
+    await popup.click('#paused');
+    await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.enabled)'));
+    await popup.click('#sites .cell[data-site="reddit"]');
+    ok('choosing a site goes home and shows it', await popup.$eval('#siteName', n => n.textContent) === 'Reddit' &&
+      await popup.$eval('[data-view="home"]', v => v.classList.contains('is-on')));
+    await popup.click('#siteButton');
+    await popup.click('#sites .cell[data-site="facebook"]');
+
     await popup.click('#siteEnabled');
     ok('the per-site switch turns off only that site', await until(() =>
       sw.evaluate('self.BFX_STORE.get().then(s => s.enabled && s.sites.facebook.enabled === false)')));
     ok("and that site's pages stop hiding things", await until(async () => !(await isHidden('u-ad'))));
+    ok('and the site gets its own logo back', await until(async () => (await iconOf()) === 'sites/facebook-off.svg'));
     await popup.click('#siteEnabled');
+    await until(async () => (await iconOf()) === 'sites/facebook-on.svg');
+
+    await setState('s => { s.sites.facebook.presets.stories = false; s.sites.facebook.presets.videoPosts = true; }');
+    await until(async () => (await popup.$$eval('.group[data-group="Feed"] .tick.is-on', t => t.length)) === 5);
+    const feedSwitch = '.group[data-group="Feed"] input';
+    await popup.click(feedSwitch);
+    ok('a group switch turns its whole group off', await until(async () => {
+      const f = await fbNow();
+      return presets.filter(r => r.group === 'Feed').every(r => f.presets[r.id] === false);
+    }));
+    ok('and remembers what was on', (await fbNow()).remembered.Feed.join() === 'videoPosts,reels,suggested,pymk', JSON.stringify((await fbNow()).remembered));
+    await popup.click(feedSwitch);
+    ok('on again puts back exactly that', await until(async () => {
+      const f = await fbNow();
+      return f.presets.videoPosts === true && f.presets.reels === true && !f.remembered.Feed;
+    }));
+    ok('and never the big switches nobody chose', (await fbNow()).presets.feed === false);
+    await popup.click(feedSwitch);
+    await until(async () => (await fbNow()).presets.reels === false);
+    await sw.evaluate('self.BFX_STORE.get().then(s => { delete s.sites.facebook.remembered.Feed; return self.BFX_STORE.set(s); })');
+    await until(async () => !(await fbNow()).remembered.Feed);
+    await popup.click(feedSwitch);
+    ok('with nothing remembered, a group comes back as the defaults', await until(async () => (await fbNow()).presets.reels === true) &&
+      (await fbNow()).presets.feed === false && (await fbNow()).presets.videoPosts === false);
+    await popup.click('.group[data-group="Effects"] input');
+    ok('a group with no defaults opens instead of switching things on', await until(async () =>
+      (await popup.$$eval('#groups .rule', r => r.length)) === presets.filter(r => r.group === 'Effects').length));
+    ok('and its switch stays off', await popup.$eval('.group[data-group="Effects"] input', i => !i.checked));
+    await popup.click('#groups .rule .rule-text');
+    ok('clicking a rule row flips its switch', await until(async () => (await fbNow()).presets.grayscale === true));
+    ok('and it stays open', (await popup.$$eval('#groups .rule', r => r.length)) > 0);
+    await popup.click('#groups .rule .rule-text');
+    await until(async () => (await fbNow()).presets.grayscale === false);
+
+    await popup.click('.tab[data-view="words"]');
+    await popup.type('#wordInput', 'crypto');
+    await popup.keyboard.press('Enter');
+    ok('the first word goes in and turns the list on', await until(() =>
+      sw.evaluate('self.BFX_STORE.get().then(s => s.keywords.enabled && s.keywords.terms[0] === "crypto")')));
+    ok('a word shows as a chip, counted on the tab', await until(async () =>
+      await popup.$eval('#words', n => n.textContent) === 'crypto' && await popup.$eval('#wordsPip', n => n.textContent) === '1'));
+    await popup.click('#kwEnabled');
+    await until(() => sw.evaluate('self.BFX_STORE.get().then(s => !s.keywords.enabled)'));
+    await popup.type('#wordInput', 'giveaway');
+    await popup.keyboard.press('Enter');
+    await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.keywords.terms.length === 2)'));
+    ok('after that the switch is left as it was set', await sw.evaluate('self.BFX_STORE.get().then(s => !s.keywords.enabled)'));
+    await popup.click('#words .chip-x');
+    await popup.click('#words .chip-x');
+    ok('a word can be removed', await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.keywords.terms.length === 0)')));
+
+    await setState(`s => { s.sites.facebook.custom.push({ id: 'p1', selector: '#nothing', label: 'A picked thing', scope: 'all', path: '/groups/', enabled: true, createdAt: 1 }); }`);
+    await popup.click('.tab[data-view="picked"]');
+    ok('a picked rule is listed and counted', await until(async () =>
+      /A picked thing/.test(await popup.$eval('#custom', n => n.textContent)) && await popup.$eval('#pickedPip', n => n.textContent) === '1'));
+    await popup.select('#custom .scope', 'path');
+    ok('its scope can be changed', await until(async () => (await fbNow()).custom[0].scope === 'path'));
+    await popup.click('#custom .delete');
+    ok('and it can be deleted', await until(async () => (await fbNow()).custom.length === 0));
+
+    await popup.click('.tab[data-view="more"]');
+    await popup.click('#placeholdersRow .line-text');
+    ok('the "show" bar switch works from its whole row', await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.placeholders === true)')));
+    await popup.click('#reset');
+    ok('Reset goes back to the defaults', await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.placeholders === false)')));
+    await popup.click('.tab[data-view="more"]');
+    ok('the active tab closes back to home', await popup.$eval('[data-view="home"]', v => v.classList.contains('is-on')));
     ok('no script errors', errors.length === 0, errors.join(' | '));
     await popup.close();
 
@@ -686,6 +799,76 @@ async function until(fn, timeout = 3000) {
       await ttOnly([]);
       const back = await until(async () => { for (const g of hide) if (await isHidden(g)) return false; return true; });
       ok(`tiktok ${id}: hides ${what}, keeps the rest, and gives it back when off`, hid && keeps && back);
+    }
+    await resetState();
+
+    /* --------------------------------------------------------------- pixiv -- */
+    console.log('\npixiv.net in real Chrome');
+    await resetState();
+    await page.bringToFront();
+    await page.goto('https://www.pixiv.net/en/artworks/1001', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#bfx-style');
+    const pxPresets = loadPresets('pixiv');
+    const pxIds = pxPresets.map(r => r.id);
+    ok('every pixiv selector parses in Chrome', (await page.evaluate(list => list.filter(sel => {
+      try { document.querySelectorAll(sel); return false; } catch (e) { return true; }
+    }), pxPresets.flatMap(r => r.css || []))).length === 0);
+    const pxOnly = list => setState(`s => { const p = s.sites.pixiv.presets; ${JSON.stringify(pxIds)}.forEach(k => { p[k] = false; }); ${list.map(id => `p.${id} = true;`).join(' ')} }`);
+    ok('the computer app\'s ads go by default, with the boxes around them',
+      await until(() => isHidden('top-slot')) && await isHidden('side-pr') && await isHidden('side-slot') && await isHidden('foot-box'));
+    ok('the phone app\'s ads go too: named slots, the fake work in a grid, the sticky one',
+      await isHidden('p-header') && await isHidden('p-header-hb') && await isHidden('p-comment') && await isHidden('p-native') && await isHidden('p-sticky'));
+    ok('a user\'s page stays, though the third box up from its ad holds it all',
+      await isHidden('user-frame') && !(await isHidden('user-page')) && !(await isHidden('user-work')));
+    ok('works, the name row and the recommendations stay',
+      !(await isHidden('work-1')) && !(await isHidden('user-name-row')) && !(await isHidden('p-related')) && !(await isHidden('p-work')));
+    await pxOnly([]);
+    ok('with everything off, every ad is back', await until(async () => !(await isHidden('top-frame')) && !(await isHidden('p-sticky'))));
+    for (const [id, what, hide, keep] of [
+      ['ads', 'the ads alone, and the "Remove ads" link in their box', ['top-frame', 'p-comment', 'remove-ads'], ['user-badge', 'p-premium-banner']],
+      ['premium', 'Premium offers', ['remove-ads', 'popular-offer', 'user-badge', 'p-premium-banner', 'p-premium-foot'], ['user-name-row', 'p-foot-link', 'top-frame']],
+      ['related', 'the suggestions below a work', ['related-section', 'p-related'], ['p-text', 'side-author']]
+    ]) {
+      await pxOnly([id]);
+      const hid = await until(async () => { for (const g of hide) if (!(await isHidden(g))) return false; return true; });
+      let keeps = true;
+      for (const k of keep) if (await isHidden(k)) keeps = false;
+      await pxOnly([]);
+      const back = await until(async () => { for (const g of hide) if (await isHidden(g)) return false; return true; });
+      ok(`pixiv ${id}: hides ${what}, keeps the rest, and gives it back when off`, hid && keeps && back);
+    }
+    await resetState();
+
+    /* ------------------------------------------------------------ mangadex -- */
+    console.log('\nmangadex.org in real Chrome');
+    await resetState();
+    await page.bringToFront();
+    await page.goto('https://mangadex.org/', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#bfx-style');
+    const mdPresets = loadPresets('mangadex');
+    const mdIds = mdPresets.map(r => r.id);
+    ok('every MangaDex selector parses in Chrome', (await page.evaluate(list => list.filter(sel => {
+      try { document.querySelectorAll(sel); return false; } catch (e) { return true; }
+    }), mdPresets.flatMap(r => r.css || []))).length === 0);
+    ok('banner ads go by default, picture or video, with the box around them, and the Advertise link',
+      await until(() => isHidden('ad-box')) && await isHidden('ad-video-box') && await isHidden('section-link-_advertise'));
+    ok('the rest of the page stays', !(await isHidden('home')) && !(await isHidden('sec-latest')) && !(await isHidden('sec-recommended')) && !(await isHidden('popular')));
+    const mdOnly = list => setState(`s => { const p = s.sites.mangadex.presets; ${JSON.stringify(mdIds)}.forEach(k => { p[k] = false; }); ${list.map(id => `p.${id} = true;`).join(' ')} }`);
+    for (const [id, what, hide, keep] of [
+      ['popular', 'the carousel', ['popular'], ['home', 'sec-latest']],
+      ['recommended', 'Recommended', ['sec-recommended'], ['sec-latest', 'sec-self']],
+      ['selfPublished', 'Self-Published', ['sec-self'], ['sec-recommended']],
+      ['seasonal', 'Seasonal', ['sec-seasonal'], ['sec-recent']],
+      ['recentlyAdded', 'Recently Added, and not its menu link', ['sec-recent'], ['section-link-_titles_recent', 'sec-seasonal']],
+      ['commentCounts', 'the comment counts', ['comment-1'], ['feed-1']]
+    ]) {
+      await mdOnly([id]);
+      const hid = await until(async () => { for (const g of hide) if (!(await isHidden(g))) return false; return true; });
+      let keeps = true;
+      for (const k of keep) if (await isHidden(k)) keeps = false;
+      await mdOnly([]);
+      const back = await until(async () => { for (const g of hide) if (await isHidden(g)) return false; return true; });
+      ok(`mangadex ${id}: hides ${what}, keeps the rest, and gives it back when off`, hid && keeps && back);
     }
     await resetState();
 

@@ -25,7 +25,7 @@ module.exports = {
   home: 'https://www.reddit.com/',
   landmarks: ['shreddit-feed', 'reddit-header-large', 'flex-left-nav-container', '#right-sidebar-container'],
   alwaysThere: ['reddit-header-large', 'shreddit-feed'],
-  popup: { label: 'Search box', find: `() => [...document.querySelectorAll('reddit-search-large')]` },
+  popup: { label: 'Search', find: `() => [...document.querySelectorAll('reddit-search-large')]` },
   adPages: { home: 'https://www.reddit.com/', 'a post page': postPage, 'another post page': page => postPage(page, 2), popular: 'https://www.reddit.com/r/popular/' },
   ads: `() => [...document.querySelectorAll('shreddit-ad-post, shreddit-sidebar-ad, shreddit-comments-page-ad, [data-ad-click-location="promoted_label"]')]`,
   truth: {

@@ -137,6 +137,8 @@ function boot(html, url) {
     'src/sites/instagram.js',
     'src/sites/twitch.js',
     'src/sites/tiktok.js',
+    'src/sites/pixiv.js',
+    'src/sites/mangadex.js',
     'src/common/storage.js',
     'src/content/engine.js',
     'src/content/picker.js'
@@ -354,7 +356,7 @@ ok('a word-blocked post leaves a placeholder naming the word',
   $('u-kw').hasAttribute('data-bfx-note') && /word: crypto/.test($('u-kw').getAttribute('data-bfx-note') || ''),
   $('u-kw').getAttribute('data-bfx-note'));
 ok('a text-rule post names its rule',
-  /Suggested \/ recommended posts/.test($('u-sug').getAttribute('data-bfx-note') || ''));
+  /Suggested posts/.test($('u-sug').getAttribute('data-bfx-note') || ''));
 ok('ads leave no placeholder', !$('u-ad').hasAttribute('data-bfx-note'));
 $('u-kw').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
 ok('clicking the placeholder shows the post', !$('u-kw').hasAttribute('data-bfx-hidden-by'));
@@ -412,6 +414,21 @@ ok('feed post gets a selector anchored on its pagelet', /FeedUnit/.test(built.se
 
 /* ------------------------------------------------------------ sites -- */
 console.log('\nsites and settings');
+const groupMemory = BFX_STORE.merge({ sites: { facebook: { remembered: { Feed: ['reels', 7, ''], Ads: 'nope', Chat: [] } } } });
+ok('a group\'s remembered switches are kept, and nothing else is', JSON.stringify(groupMemory.sites.facebook.remembered) === '{"Feed":["reels"]}',
+  JSON.stringify(groupMemory.sites.facebook.remembered));
+ok('every site starts with nothing remembered', JSON.stringify(BFX_STORE.merge(null).sites.reddit.remembered) === '{}');
+const memoryBack = BFX_STORE.fromBackup(JSON.parse(JSON.stringify(BFX_STORE.toBackup(groupMemory))));
+ok('a backup keeps what a group remembers', memoryBack.sites.facebook.remembered.Feed[0] === 'reels');
+const popupSource = fs.readFileSync(path.join(root, 'src/popup/popup.js'), 'utf8');
+const noArt = [];
+BFX_SITES.available().forEach(p => {
+  ['on', 'off'].forEach(state => {
+    if (!fs.existsSync(path.join(root, 'src/popup/sites', p.id + '-' + state + '.svg'))) noArt.push(p.id + '-' + state);
+  });
+  p.groups.forEach(g => { if (popupSource.indexOf("'" + g + "':") === -1) noArt.push(p.id + ' group ' + g); });
+});
+ok('every site has both icons and every group has its symbol', noArt.length === 0, noArt.join(', '));
 ok('hostnames map to their site', BFX_SITES.forHost('www.facebook.com') === 'facebook' &&
   BFX_SITES.forHost('old.reddit.com') === 'reddit' && BFX_SITES.forHost('x.com') === 'x' &&
   BFX_SITES.forHost('mobile.twitter.com') === 'x' && BFX_SITES.forHost('www.twitch.tv') === 'twitch');
@@ -907,6 +924,71 @@ console.log('\ntiktok.com as of October 2026, signed out (test/fixtures/tiktok.h
   const pick = w.BFX_PICKER.selectorFor($$('v-1'));
   const hits = Array.from(w.document.querySelectorAll(pick.selector)).map(e => e.id);
   ok('picking a video means that account, not one whose name starts the same → ' + pick.author, pick.author === '@gina_example' && hits.join() === 'v-1', hits.join());
+}
+
+/* ---------------------------------------------- pixiv.net, November 2026 -- */
+console.log('\npixiv.net as of November 2026, both apps (test/fixtures/pixiv.html)');
+{
+  const html = fs.readFileSync(path.join(__dirname, 'fixtures/pixiv.html'), 'utf8');
+  const w = boot(html, 'https://www.pixiv.net/en/artworks/1001');
+  const $$ = id => w.document.getElementById(id);
+  const S = w.BFX_STORE;
+  const sheet = () => w.document.getElementById('bfx-style').textContent;
+  ok('pixiv.net runs the pixiv rules', w.BFX_ENGINE.site && w.BFX_ENGINE.site.id === 'pixiv');
+  w.BFX_ENGINE.apply(S.merge(null));
+  await frame();
+  ok('ad frames and the phone app\'s ad boxes are hidden by default',
+    sheet().includes('iframe[data-uid]') && sheet().includes('.ad-frame-container') && sheet().includes('.ad-frame-headerbidding'));
+  ok('Premium offers too; related works stay until asked for',
+    sheet().includes('a[href^="/premium/lead/lp/"]') && !sheet().includes('gtm-illust-recommend-zone'));
+  ok('.ad-overlay-hide-area holds the recommendations: no ad rule names it', !sheet().includes('ad-overlay-hide-area'));
+  const pack = w.BFX_SITES.get('pixiv');
+  const ads = pack.presets.find(r => r.id === 'ads').css;
+  const hits = id => ads.some(sel => { try { return $$(id).matches(sel); } catch (e) { return false; } });
+  ok('every box that only holds an ad goes with it',
+    ['top-slot', 'side-pr', 'foot-box', 'side-slot', 'p-native', 'p-sticky'].every(hits), ['top-slot', 'side-pr', 'foot-box', 'side-slot', 'p-native', 'p-sticky'].filter(id => !hits(id)).join());
+  ok('a user\'s page, whose third box up also holds the page, never does',
+    !['user-page', 'user-name-row', 'p-related', 'p-text'].some(hits), ['user-page', 'user-name-row', 'p-related', 'p-text'].filter(hits).join());
+
+  w.BFX_ENGINE.apply(S.merge({ keywords: { enabled: true, terms: ['giveaway'] } }));
+  await frame();
+  ok('word blocks work on a work\'s title', $$('work-2').getAttribute('data-bfx-hidden-by') === 'keyword' && !$$('work-1').hasAttribute('data-bfx-hidden-by'));
+  const pick = w.BFX_PICKER.selectorFor($$('work-1'));
+  const picked = Array.from(w.document.querySelectorAll(pick.selector)).map(e => e.id);
+  ok('picking a work means that artist, not one whose id ends the same → ' + pick.author, pick.author === 'Ren Example' && picked.join() === 'work-1', picked.join());
+  const phone = w.BFX_PICKER.selectorFor($$('p-text').querySelector('p'));
+  ok('the picker never uses a generated class: ' + phone.selector, !/\.sc-/.test(phone.selector));
+}
+
+/* -------------------------------------------- mangadex.org, November 2026 -- */
+console.log('\nmangadex.org as of November 2026 (test/fixtures/mangadex.html)');
+{
+  const html = fs.readFileSync(path.join(__dirname, 'fixtures/mangadex.html'), 'utf8');
+  const w = boot(html, 'https://mangadex.org/');
+  const $$ = id => w.document.getElementById(id);
+  const S = w.BFX_STORE;
+  const sheet = () => w.document.getElementById('bfx-style').textContent;
+  ok('mangadex.org runs the MangaDex rules', w.BFX_ENGINE.site && w.BFX_ENGINE.site.id === 'mangadex');
+  w.BFX_ENGINE.apply(S.merge(null));
+  await frame();
+  ok('banner ads and the Advertise link are hidden by default',
+    sheet().includes('img[src^="/temp/"]') && sheet().includes('#section-link-_advertise'));
+  ok('home sections stay until asked for', !sheet().includes('/titles/recommended'));
+  const pack = w.BFX_SITES.get('mangadex');
+  const css = id => pack.presets.find(r => r.id === id).css;
+  const by = (id, el) => css(id).some(sel => $$(el).matches(sel));
+  ok('the ad\'s box goes with it, image or video, whichever partner it is', by('banners', 'ad-box') && by('banners', 'ad-video-box'));
+  ok('a section goes by the link to its full list, not by language',
+    by('recommended', 'sec-recommended') && by('selfPublished', 'sec-self') && by('seasonal', 'sec-seasonal') && by('recentlyAdded', 'sec-recent'));
+  ok('…and never the side menu, which links to the same lists', !by('recentlyAdded', 'section-Titles') && !by('recentlyAdded', 'section-link-_titles_recent'));
+  ok('Latest Updates has no switch that could take it', !['recommended', 'selfPublished', 'seasonal', 'recentlyAdded', 'popular', 'banners'].some(id => by(id, 'sec-latest')));
+
+  w.BFX_ENGINE.apply(S.merge({ keywords: { enabled: true, terms: ['giveaway'] } }));
+  await frame();
+  ok('word blocks work on a title in a list', $$('feed-2').getAttribute('data-bfx-hidden-by') === 'keyword' && !$$('feed-1').hasAttribute('data-bfx-hidden-by'));
+  const pick = w.BFX_PICKER.selectorFor($$('card-1'));
+  const picked = Array.from(w.document.querySelectorAll(pick.selector)).map(e => e.id);
+  ok('picking a card means that title → ' + pick.author, pick.author === 'Lantern Street' && picked.join() === 'card-1', picked.join());
 }
 
 report();

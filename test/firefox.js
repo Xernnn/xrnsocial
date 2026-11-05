@@ -49,7 +49,9 @@ const PAGES = [
   [/(^|\.)linkedin\.com$/, () => 'linkedin.html'],
   [/(^|\.)instagram\.com$/, url => /^\/reels?\/\w/.test(url.pathname) ? 'instagram-reels.html' : 'instagram.html'],
   [/(^|\.)twitch\.tv$/, () => 'twitch.html'],
-  [/(^|\.)tiktok\.com$/, () => 'tiktok.html']
+  [/(^|\.)tiktok\.com$/, () => 'tiktok.html'],
+  [/(^|\.)pixiv\.net$/, () => 'pixiv.html'],
+  [/(^|\.)mangadex\.org$/, () => 'mangadex.html']
 ];
 
 (async () => {
@@ -101,7 +103,9 @@ const PAGES = [
       ['https://www.linkedin.com/feed/', 'LinkedIn', ['item-ad', 'item-ad-de', 'left-premium'], ['item-plain', 'item-suggested']],
       ['https://www.instagram.com/', 'Instagram', ['a-ad', 'a-ad-quiet', 'a-reel'], ['a-plain', 'a-suggested']],
       ['https://www.twitch.tv/', 'Twitch', ['headliner', 'sda', 'grp-recommended'], ['grp-followed', 'featured']],
-      ['https://www.tiktok.com/foryou', 'TikTok', ['coins', 'capcut'], ['v-1']]
+      ['https://www.tiktok.com/foryou', 'TikTok', ['coins', 'capcut'], ['v-1']],
+      ['https://www.pixiv.net/en/artworks/1001', 'pixiv', ['top-frame', 'p-sticky', 'p-native', 'remove-ads'], ['work-1', 'user-page', 'p-related']],
+      ['https://mangadex.org/', 'MangaDex', ['ad-box', 'ad-video-box', 'section-link-_advertise'], ['sec-latest', 'sec-recommended']]
     ];
     for (const [url, name, hide, keep] of cases) {
       await open(url);

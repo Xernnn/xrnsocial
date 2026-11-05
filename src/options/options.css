@@ -5,7 +5,7 @@
   --line: #e4e6eb;
   --text: #1c1e21;
   --dim: #65676b;
-  --accent: #2d88ff;
+  --accent: #d6336c;
   --danger: #e04b4b;
   --ok: #2e7d32;
 }
@@ -30,14 +30,7 @@ body {
 main { max-width: 560px; margin: 0 auto; padding: 32px 16px; }
 
 .head { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
-.logo {
-  width: 36px; height: 36px; flex: none;
-  display: grid; place-items: center;
-  border-radius: 10px;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 800;
-}
+.logo { width: 36px; height: 36px; flex: none; }
 h1 { margin: 0; font-size: 20px; }
 h2 { margin: 0 0 4px; font-size: 15px; }
 .dim { margin: 0 0 12px; color: var(--dim); }

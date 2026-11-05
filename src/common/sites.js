@@ -16,7 +16,9 @@
     { id: 'linkedin', name: 'LinkedIn', hosts: ['linkedin.com'] },
     { id: 'instagram', name: 'Instagram', hosts: ['instagram.com'] },
     { id: 'tiktok', name: 'TikTok', hosts: ['tiktok.com'] },
-    { id: 'twitch', name: 'Twitch', hosts: ['twitch.tv'] }
+    { id: 'twitch', name: 'Twitch', hosts: ['twitch.tv'] },
+    { id: 'pixiv', name: 'pixiv', hosts: ['pixiv.net'] },
+    { id: 'mangadex', name: 'MangaDex', hosts: ['mangadex.org'] }
   ];
 
   var packs = {};
@@ -99,7 +101,7 @@
       return {
         id: 'blurFeed',
         group: 'Effects',
-        label: 'Blur posts until hovered',
+        label: 'Blur posts',
         desc: 'Stops passive scrolling dead. You have to choose to read something.',
         style: post + ':not([data-bfx-note]) { filter: blur(5px); transition: filter .15s ease; }' +
           post + ':hover { filter: none; }'
@@ -112,7 +114,7 @@
       return {
         id: 'noAutoplay',
         group: group,
-        label: 'Stop videos playing by themselves',
+        label: 'Stop autoplay',
         desc: desc || 'Videos stay paused while you scroll past. Click one and it plays as normal.',
         behavior: true
       };

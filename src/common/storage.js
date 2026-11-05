@@ -4,11 +4,14 @@
  * subtle.
  *
  *   { enabled, placeholders, keywords: { enabled, terms },
- *     sites: { <site id>: { enabled, presets: { <preset id>: bool }, custom: [rule] } } }
+ *     sites: { <site id>: { enabled, presets: { <preset id>: bool }, custom: [rule],
+ *                           remembered: { <group>: [preset id] } } } }
  *
  * The pause switch, the "show" bars and the word list are shared by every
- * site; switches and picked rules belong to one site. Settings saved before
- * there was more than one site were Facebook's and are moved there.
+ * site; switches and picked rules belong to one site. `remembered` holds what
+ * was on in a group when the popup's group switch turned it off, so turning
+ * it back on restores that. Settings saved before there was more than one
+ * site were Facebook's and are moved there.
  */
 (function (root) {
   'use strict';
@@ -31,6 +34,19 @@
     return root.BFX_SITES ? root.BFX_SITES.list.map(function (s) { return s.id; }) : [];
   }
 
+  /* Only lists of ids survive, whatever a hand-edited backup holds. */
+  function cleanRemembered(map) {
+    var out = {};
+    if (map && typeof map === 'object' && !Array.isArray(map)) {
+      Object.keys(map).forEach(function (group) {
+        if (!Array.isArray(map[group])) return;
+        var ids = map[group].filter(function (id) { return typeof id === 'string' && id; });
+        if (ids.length) out[group] = ids;
+      });
+    }
+    return out;
+  }
+
   /* One site's settings over its defaults. Defaults come from the site's
    * rule pack, so where a pack is not loaded (the service worker) stored
    * switches are kept as they are and nothing is added. */
@@ -40,7 +56,8 @@
     return {
       enabled: stored.enabled !== false,
       presets: Object.assign(defaults, stored.presets || {}),
-      custom: Array.isArray(stored.custom) ? stored.custom : []
+      custom: Array.isArray(stored.custom) ? stored.custom : [],
+      remembered: cleanRemembered(stored.remembered)
     };
   }
 
@@ -209,7 +226,8 @@
       out.sites[id] = {
         enabled: sites[id].enabled !== false,
         presets: cleanSwitches(sites[id].presets),
-        custom: cleanRules(sites[id].custom)
+        custom: cleanRules(sites[id].custom),
+        remembered: sites[id].remembered
       };
     });
     return merge(out);

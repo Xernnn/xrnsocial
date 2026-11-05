@@ -9,7 +9,7 @@ module.exports = {
   alwaysThere: ['main', '[data-e2e="nav-foryou"]'],
   adPages: {},
   ads: all('[data-bfx-never]'),
-  popup: { label: 'Like, comment, save and share counts', find: all('[data-e2e="like-count"]') },
+  popup: { label: 'Counts', find: all('[data-e2e="like-count"]') },
   pairs: [['counts', 'music'], ['upsells', 'navExtras'], ['grayscale', 'blurFeed']],
   reveal: { words: ['the', 'a'] },
   nav: ['a[data-e2e="nav-explore"]', 'a[data-e2e="nav-foryou"]'],
