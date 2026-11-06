@@ -872,6 +872,240 @@ async function until(fn, timeout = 3000) {
     }
     await resetState();
 
+    /* -------------------------------------------------------------- picker -- */
+    console.log('\nthe picker, by mouse and by finger');
+    await resetState();
+    await page.bringToFront();
+    const startPicker = () => sw.evaluate(async () => {
+      const [tab] = await chrome.tabs.query({ url: ['https://www.reddit.com/*', 'https://www.linkedin.com/*', 'https://mangadex.org/*'] });
+      return chrome.tabs.sendMessage(tab.id, { type: 'bfx:pick' });
+    });
+    const picked = () => sw.evaluate(async () => (await self.BFX_STORE.get()).sites.reddit.custom);
+    const spotOf = sel => page.evaluate(s => {
+      const el = document.querySelector(s);
+      el.scrollIntoView({ block: 'center' });
+      const r = el.getBoundingClientRect();
+      return { x: r.left + Math.min(r.width / 2, 40), y: r.top + r.height / 2 };
+    }, sel);
+    const pickerNow = () => page.evaluate(() => {
+      const host = document.querySelector('.bfx-picker-root');
+      if (!host) return null;
+      const btn = act => {
+        const b = host.querySelector(`[data-act="${act}"]`);
+        return { shown: b.getClientRects().length > 0, on: !b.disabled, text: b.textContent };
+      };
+      const r = host.querySelector('.bfx-box').getBoundingClientRect();
+      const bar = host.querySelector('.bfx-bar').getBoundingClientRect();
+      return {
+        touch: host.hasAttribute('data-bfx-touch'),
+        top: host.hasAttribute('data-bfx-top'),
+        name: host.querySelector('.bfx-name').textContent,
+        hint: host.querySelector('.bfx-bar-hint').getClientRects().length > 0,
+        box: { left: r.left, right: r.right, top: r.top, bottom: r.bottom },
+        bar: { top: bar.top, bottom: bar.bottom, width: bar.width },
+        smaller: btn('smaller'), bigger: btn('bigger'), mode: btn('mode'), cancel: btn('cancel'), hide: btn('hide')
+      };
+    });
+    const tapOn = async sel => {
+      const at = await spotOf(sel);
+      await page.touchscreen.tap(at.x, at.y);
+      await sleep(120);
+    };
+    const press = async act => {
+      const at = await page.evaluate(a => {
+        const r = document.querySelector(`.bfx-picker-root [data-act="${a}"]`).getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      }, act);
+      await page.touchscreen.tap(at.x, at.y);
+      await sleep(120);
+    };
+
+    /* A computer's picker stays what it was. */
+    await page.goto('https://www.reddit.com/', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#bfx-style');
+    await startPicker();
+    await until(async () => !!(await pickerNow()));
+    let pk = await pickerNow();
+    ok('with a mouse: the bar shows the keys and no buttons', !pk.touch && pk.hint && !pk.hide.shown && !pk.cancel.shown, JSON.stringify(pk));
+    ok('nothing is marked before the mouse moves, not even a dot in the corner', pk.box.right <= 0 && pk.box.bottom <= 0, JSON.stringify(pk.box));
+    let spot = await spotOf('#t3_sub > [slot="title"]');
+    await page.mouse.move(spot.x, spot.y);
+    await sleep(60);
+    pk = await pickerNow();
+    ok('moving the mouse marks what it is over', pk.name === 'My cat found a box', pk.name);
+    await page.keyboard.press('ArrowUp');
+    for (let i = 0; i < 12; i++) await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('ArrowDown');
+    ok('↑ past the top and one ↓ moves at once', await page.evaluate(() => document.querySelector('.bfx-name').textContent) !== '' &&
+      (await pickerNow()).name !== 'My cat found a box');
+    await page.keyboard.press('Escape');
+    ok('Esc leaves, saving nothing', !(await pickerNow()) && (await picked()).length === 0);
+    await startPicker();
+    await until(async () => !!(await pickerNow()));
+    await page.mouse.move(spot.x, spot.y + 1);
+    await page.mouse.move(spot.x, spot.y);
+    await sleep(60);
+    await page.mouse.down();
+    await page.mouse.up();
+    ok('a click hides at once and opens nothing', await until(async () => (await picked()).length === 1) &&
+      new URL(page.url()).pathname === '/' && !(await pickerNow()));
+
+    /* A finger. Input goes through Chrome's real touch path, so cancelling
+     * pointerdown takes the mouse events away as it does on a phone. */
+    await resetState();
+    await page.setViewport({ width: 412, height: 800, hasTouch: true });
+    const loadByFinger = async () => {
+      await page.goto('https://www.reddit.com/', { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#bfx-style');
+      await startPicker();
+      await until(async () => !!(await pickerNow()));
+    };
+    await loadByFinger();
+    await page.evaluate(() => {
+      self.__heard = [];
+      ['touchstart', 'touchend', 'pointerdown', 'click'].forEach(t => document.addEventListener(t, e => self.__heard.push(t), false));
+    });
+    await tapOn('#t3_sub > [slot="title"]');
+    pk = await pickerNow();
+    ok('a tap selects and hides nothing yet', pk.touch && pk.hide.shown && pk.hide.on && (await picked()).length === 0, JSON.stringify(pk));
+    ok('a tap in a post selects the whole post', pk.name === 'Posts from r/cats', pk.name);
+    const article = await page.evaluate(() => { const r = document.getElementById('a-sub').getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; });
+    ok('the highlight sits on that post', Math.abs(pk.box.top - article.top) < 5 && Math.abs(pk.box.bottom - article.bottom) < 5, JSON.stringify([pk.box, article]));
+    ok('the tap opened nothing', new URL(page.url()).pathname === '/');
+    ok('the page heard none of it', (await page.evaluate(() => self.__heard.length)) === 0, await page.evaluate(() => self.__heard.join()));
+    ok('with a finger: buttons in place of the keys', !pk.hint && pk.smaller.shown && pk.bigger.shown && pk.cancel.shown);
+    ok('a post has no "all of them" choice', !pk.mode.shown);
+    const post = pk;
+    await press('smaller');
+    pk = await pickerNow();
+    ok('Smaller steps in towards the spot touched', pk.name !== 'Posts from r/cats' && pk.bigger.on, pk.name);
+    ok('one press shows on screen: same-sized wrappers are skipped', pk.box.bottom - pk.box.top < post.box.bottom - post.box.top - 2, JSON.stringify([post.box, pk.box]));
+    let steps = 0;
+    while ((await pickerNow()).smaller.on && steps++ < 8) await press('smaller');
+    pk = await pickerNow();
+    ok('it ends on what was touched, and says so by greying out', pk.name === 'My cat found a box' && !pk.smaller.on, JSON.stringify(pk.smaller));
+    await press('bigger');
+    await press('bigger');
+    ok('Bigger steps back out', (await pickerNow()).name !== 'My cat found a box');
+    await press('cancel');
+    ok('Cancel leaves, saving nothing', !(await pickerNow()) && (await picked()).length === 0);
+
+    await startPicker();
+    await until(async () => !!(await pickerNow()));
+    pk = await pickerNow();
+    ok('before a tap: one line and Cancel, and the bar stays small', pk.name === 'Tap what you want to hide' &&
+      pk.cancel.shown && !pk.hide.shown && !pk.smaller.shown && pk.bar.width < 340, JSON.stringify(pk.bar));
+    ok('the hints are for a phone, and the corner is clear', !pk.hint && pk.box.right <= 0);
+    await tapOn('#chat');
+    pk = await pickerNow();
+    ok('a tap outside any post selects that thing itself', pk.name.startsWith('Chat') && !pk.smaller.on, JSON.stringify(pk));
+    await tapOn('#t3_sub > [slot="title"]');
+    ok('another tap moves the selection', (await pickerNow()).name === 'Posts from r/cats');
+    await press('hide');
+    ok('Hide saves the rule', await until(async () => (await picked()).length === 1) && (await picked())[0].selector.includes('r/cats'),
+      JSON.stringify(await picked()));
+    ok('the post goes and the bar with it', await until(() => isHidden('a-sub')) && !(await pickerNow()));
+    const toast = await page.evaluate(() => { const t = document.querySelector('.bfx-toast'); const r = t.getBoundingClientRect(); return { left: r.left, right: r.right, height: r.height }; });
+    ok('the toast fits the phone', toast.left >= 0 && toast.right <= 412, JSON.stringify(toast));
+
+    await resetState();
+    await loadByFinger();
+    await page.evaluate(() => {
+      document.querySelectorAll('[id^="many-"]').forEach(e => e.remove());
+      const list = document.createElement('div');
+      list.innerHTML = Array.from({ length: 12 }, (_, i) => `<reddit-tag id="many-${i}" style="display:block;height:30px">tag ${i}</reddit-tag>`).join('');
+      document.body.appendChild(list);
+      list.id = 'many';
+      const stuck = document.createElement('reddit-stuck-menu');
+      stuck.id = 'stuck';
+      stuck.textContent = 'Fixed to the bottom of the screen';
+      stuck.style.cssText = 'position:fixed;left:0;right:0;bottom:0;height:64px;background:#555;z-index:5';
+      document.documentElement.appendChild(stuck);
+    });
+    await page.evaluate(() => {
+      const label = document.createElement('div');
+      label.id = 'worded';
+      label.innerHTML = '<script type="text/plain">code()</' + 'script><b>Real</b><i>words</i>';
+      const picture = document.createElement('div');
+      picture.innerHTML = '<img id="pic" alt="" width="80" height="40" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">';
+      document.getElementById('many').before(label, picture);
+    });
+    await tapOn('#worded b');
+    await press('bigger');
+    ok('a name is the words on screen, spaced, with no script in it', (await pickerNow()).name === 'Real words', (await pickerNow()).name);
+    await tapOn('#pic');
+    ok('a picture is called one', (await pickerNow()).name === 'Picture', (await pickerNow()).name);
+    await tapOn('#many-3');
+    pk = await pickerNow();
+    ok('many alike offers all of them', pk.name === 'tag 3' && pk.mode.shown && pk.mode.text === 'All 12', JSON.stringify(pk));
+    await press('mode');
+    pk = await pickerNow();
+    ok('and that switches to only this one', pk.mode.text === 'Only this', JSON.stringify(pk.mode));
+    await press('mode');
+    await press('cancel');
+    await startPicker();
+    await until(async () => !!(await pickerNow()));
+    const edge = await page.evaluate(() => { const r = document.getElementById('stuck').getBoundingClientRect(); return { x: 12, y: r.top + r.height / 2 }; });
+    await page.touchscreen.tap(edge.x, edge.y);
+    await sleep(120);
+    pk = await pickerNow();
+    ok('what is fixed to the bottom can be reached beside the small bar', pk.name.startsWith('Fixed to the bottom'), pk.name);
+    ok('and the bar moves off it', pk.top && pk.bar.bottom < 300, JSON.stringify(pk.bar));
+    ok('Bigger stops short of the page itself', pk.bigger.on === false, JSON.stringify(pk.bigger));
+    await press('cancel');
+
+    await startPicker();
+    await until(async () => !!(await pickerNow()));
+    await page.evaluate(() => scrollTo(0, 0));
+    await sleep(60);
+    const scrollFrom = await page.evaluate(() => scrollY);
+    await page.touchscreen.touchStart(200, 500);
+    await page.touchscreen.touchMove(200, 420);
+    await page.touchscreen.touchMove(200, 300);
+    await page.touchscreen.touchEnd();
+    await sleep(250);
+    pk = await pickerNow();
+    ok('a swipe scrolls and selects nothing', pk.name === 'Tap what you want to hide' && (await page.evaluate(() => scrollY)) !== scrollFrom, pk.name);
+    await press('cancel');
+    await page.evaluate(() => document.getElementById('stuck').remove());
+
+    /* LinkedIn's posts are display: contents, with no box of their own. */
+    await resetState();
+    await page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#bfx-style');
+    await startPicker();
+    await until(async () => !!(await pickerNow()));
+    await tapOn('#item-plain h2 ~ div');
+    pk = await pickerNow();
+    ok('a post with no box of its own still gets a highlight', pk.name.startsWith('Posts from') && pk.box.right - pk.box.left > 100 && pk.box.bottom - pk.box.top > 20, JSON.stringify(pk));
+    await press('cancel');
+
+    /* MangaDex's home rows: the rule must follow the title, not the row's place. */
+    await resetState();
+    await page.goto('https://mangadex.org/', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#bfx-style');
+    await startPicker();
+    await until(async () => !!(await pickerNow()));
+    await tapOn('#hrow-1 img');
+    ok('a tap on a home row selects that title', (await pickerNow()).name === 'Posts from Harbour Lights', (await pickerNow()).name);
+    await press('cancel');
+
+    /* Someone with a touch screen and a mouse is served by whichever they use. */
+    await page.setViewport({ width: 800, height: 600, hasTouch: true });
+    await resetState();
+    await loadByFinger();
+    spot = await spotOf('#t3_sub > [slot="title"]');
+    await page.mouse.move(spot.x, spot.y);
+    await page.mouse.move(spot.x + 1, spot.y);
+    await sleep(60);
+    await page.touchscreen.tap(spot.x, spot.y);
+    await sleep(120);
+    pk = await pickerNow();
+    ok('a touch screen beside a mouse: a tap still only selects', pk && pk.touch && (await picked()).length === 0, JSON.stringify(pk));
+    await press('cancel');
+    await resetState();
+    await page.setViewport({ width: 800, height: 600 });
+
     /* ----------------------------------------------------------- snapshots -- */
     console.log('\nsaved Facebook pages (test/fixtures/snapshots)');
     const snapDir = path.join(fixtures, 'snapshots');

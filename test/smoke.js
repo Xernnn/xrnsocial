@@ -989,6 +989,9 @@ console.log('\nmangadex.org as of November 2026 (test/fixtures/mangadex.html)');
   const pick = w.BFX_PICKER.selectorFor($$('card-1'));
   const picked = Array.from(w.document.querySelectorAll(pick.selector)).map(e => e.id);
   ok('picking a card means that title → ' + pick.author, pick.author === 'Lantern Street' && picked.join() === 'card-1', picked.join());
+  const row = w.BFX_PICKER.selectorFor($$('hrow-1'));
+  const rows = Array.from(w.document.querySelectorAll(row.selector)).map(e => e.id);
+  ok('a home row means that title too, never its place in the list → ' + row.author, row.author === 'Harbour Lights' && rows.join() === 'hrow-1', rows.join());
 }
 
 report();

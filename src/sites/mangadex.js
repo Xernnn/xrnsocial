@@ -18,7 +18,7 @@
 
   var SITES = root.BFX_SITES;
 
-  var CARD = '.manga-card, .chapter-feed__container';
+  var CARD = '.manga-card, .chapter-feed__container, .hchaptercard';
 
   /* A home section, by the link to its full list. Inside .page-container
    * because the side menu links to some of the same lists. */
@@ -104,9 +104,9 @@
     var m = link && /^\/title\/[0-9a-f-]+/.exec(link.getAttribute('href'));
     if (!m) return null;
     var key = 'a[href^=' + cssString(m[0]) + ']';
-    var title = card.querySelector('a.title, .chapter-feed__title');
+    var title = card.querySelector('a.title, .chapter-feed__title, h6');
     return {
-      selector: '.manga-card:has(' + key + '), .chapter-feed__container:has(' + key + ')',
+      selector: CARD.split(', ').map(function (c) { return c + ':has(' + key + ')'; }).join(', '),
       name: (title && title.textContent.trim()) || 'this title'
     };
   }

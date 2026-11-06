@@ -13,6 +13,8 @@
 
 .bfx-box {
   position: fixed;
+  top: -20px;              /* its shadow dims the page before anything is chosen */
+  left: -20px;
   border: 2px solid #2d88ff;
   background: rgba(45, 136, 255, 0.16);
   border-radius: 6px;
@@ -65,12 +67,67 @@
 .bfx-warn[data-level="bad"] { color: #ff8080; }
 .bfx-warn[data-level="info"] { color: #9aa0a6; }
 
+/* By finger: a tap selects, and the bar holds what the keys do on a computer.
+ * While nothing is chosen it stays small, so what lies under it is in reach. */
+.bfx-touch { display: none; }
+[data-bfx-touch] .bfx-sel, [data-bfx-touch] .bfx-bar-hint { display: none; }
+[data-bfx-touch] .bfx-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+[data-bfx-touch] .bfx-warn { font-size: 13px; }
+[data-bfx-touch] .bfx-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  width: max-content;
+  max-width: calc(100vw - 16px);
+  padding: 8px 8px 8px 14px;
+  border-radius: 16px;
+  font-size: 15px;
+  pointer-events: auto;
+}
+[data-bfx-touch] .bfx-touch { display: block; flex: none; }
+[data-bfx-touch][data-bfx-chosen] .bfx-bar {
+  display: block;
+  left: 8px;
+  right: 8px;
+  width: auto;
+  max-width: none;
+  padding: 12px;
+  transform: none;
+}
+[data-bfx-touch][data-bfx-chosen] .bfx-touch { margin-top: 10px; }
+[data-bfx-touch][data-bfx-top] .bfx-bar { top: 8px; bottom: auto; }
+.bfx-row { display: flex; gap: 8px; }
+.bfx-row[hidden] { display: none; }
+.bfx-row + .bfx-row { margin-top: 8px; }
+.bfx-adjust[hidden] + .bfx-row { margin-top: 0; }
+.bfx-btn {
+  all: unset;
+  box-sizing: border-box;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: #2a2d33;
+  color: #e7e9ea;
+  font: 600 14px/44px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  text-align: center;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+.bfx-btn[hidden] { display: none; }
+.bfx-btn:disabled { opacity: .4; }
+.bfx-btn-hide { flex-grow: 2; background: #d6336c; color: #fff; }
+
 .bfx-toast {
   position: fixed;
   left: 50%;
   bottom: 26px;
   transform: translateX(-50%);
   z-index: 2147483647;
+  width: max-content;
+  max-width: calc(100vw - 32px);
   padding: 11px 16px;
   border-radius: 10px;
   background: #16181c;

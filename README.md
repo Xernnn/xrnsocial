@@ -17,8 +17,8 @@ Nothing leaves your browser: no network requests, no analytics, no accounts.
   turn the whole group off and on in one go: it remembers what you had on.
   Changes apply at once to every open tab, with no reload.
 - **Picker.** Press `Alt+Shift+H` (or use the popup) and click anything to
-  hide it. Picking a whole post hides posts from that author, page or
-  community.
+  hide it. On a phone, tap it, adjust with Smaller and Bigger, then tap Hide.
+  Picking a whole post hides posts from that author, page or community.
 - **Word blocks.** Hide posts containing a word, or a `/regex/i`.
 - **"Show" bars.** If you like, a hidden post can leave a one-line bar that
   you click to bring the post back.

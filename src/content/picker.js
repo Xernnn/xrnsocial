@@ -18,6 +18,9 @@
   var climb = 0;          // how many parents up from `hovered`
   var useBroad = true;
   var onDone = null;
+  var touch = false;      // choosing by finger: a tap selects, the bar has buttons
+  var finger = false;     // the press under way is a finger's, not a mouse's
+  var watcher = 0;        // keeps a finger's selection in step with the page
 
   /* ------------------------------------------------- selector building -- */
 
@@ -231,6 +234,7 @@
           broad: author.selector,
           exact: author.selector,
           author: author.name,
+          alike: 0,
           count: posts.length,
           valid: Array.prototype.indexOf.call(posts, el) !== -1
         };
@@ -245,19 +249,35 @@
       selector: chosen,
       broad: broad,
       exact: exact,
+      alike: broad ? matches(broad).length : 0,
       count: list.length,
       valid: Array.prototype.indexOf.call(list, el) !== -1
     };
   }
+
+  /* The words a person sees first, spaced: textContent runs them together
+   * ("Ch. 480Speedstar") and takes in scripts. */
+  function firstWords(el) {
+    var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    var words = '';
+    while (words.length < 40 && walker.nextNode()) {
+      var text = walker.currentNode.nodeValue.trim();
+      if (text && !/^(SCRIPT|STYLE|NOSCRIPT)$/.test(walker.currentNode.parentNode.nodeName)) {
+        words += (words ? ' ' : '') + text;
+      }
+    }
+    return words.replace(/\s+/g, ' ').slice(0, 40);
+  }
+
+  var KINDS = { img: 'Picture', picture: 'Picture', video: 'Video', svg: 'Icon', a: 'Link', button: 'Button' };
 
   function describe(el) {
     if (isPost(el)) {
       var author = authorOf(el);
       if (author) return 'Posts from ' + (author.name.length > 32 ? author.name.slice(0, 31) + '…' : author.name);
     }
-    var label = el.getAttribute('aria-label') || el.getAttribute('data-pagelet') || '';
-    if (!label) label = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40);
-    if (!label) label = el.tagName.toLowerCase();
+    var label = el.getAttribute('aria-label') || el.getAttribute('data-pagelet') || firstWords(el);
+    if (!label) label = KINDS[el.tagName.toLowerCase()] || 'This part';
     return label.length > 44 ? label.slice(0, 43) + '…' : label;
   }
 
@@ -279,15 +299,34 @@
           '<b>a</b> <span class="bfx-mode"></span> &nbsp; <b>esc</b> cancel' +
         '</div>' +
         '<div class="bfx-warn"></div>' +
+        '<div class="bfx-touch">' +
+          '<div class="bfx-row bfx-adjust">' +
+            '<button class="bfx-btn" type="button" data-act="smaller">Smaller</button>' +
+            '<button class="bfx-btn" type="button" data-act="bigger">Bigger</button>' +
+            '<button class="bfx-btn" type="button" data-act="mode"></button>' +
+          '</div>' +
+          '<div class="bfx-row">' +
+            '<button class="bfx-btn" type="button" data-act="cancel">Cancel</button>' +
+            '<button class="bfx-btn bfx-btn-hide" type="button" data-act="hide">Hide</button>' +
+          '</div>' +
+        '</div>' +
       '</div>';
     document.documentElement.appendChild(host);
+    LISTEN.concat(TOUCHES).forEach(function (type) { host.addEventListener(type, onBar); });
+    var act = function (name) { return host.querySelector('[data-act="' + name + '"]'); };
     return {
       host: host,
+      bar: host.querySelector('.bfx-bar'),
       box: host.querySelector('.bfx-box'),
       name: host.querySelector('.bfx-name'),
       sel: host.querySelector('.bfx-sel'),
       mode: host.querySelector('.bfx-mode'),
-      warn: host.querySelector('.bfx-warn')
+      warn: host.querySelector('.bfx-warn'),
+      adjust: host.querySelector('.bfx-adjust'),
+      smaller: act('smaller'),
+      bigger: act('bigger'),
+      modeButton: act('mode'),
+      hide: act('hide')
     };
   }
 
@@ -302,9 +341,34 @@
     return cache.built;
   }
 
+  /* The bar's own buttons, for what a finger has selected. */
+  function paintButtons(built) {
+    ui.adjust.hidden = !built;
+    ui.hide.hidden = !built;
+    if (built) {
+      ui.host.setAttribute('data-bfx-chosen', '');
+      ui.smaller.disabled = climb === 0;
+      ui.bigger.disabled = !canGrow(target);
+      ui.hide.disabled = !built.valid || !built.selector;
+      ui.modeButton.hidden = built.alike < 2;
+      ui.modeButton.textContent = useBroad ? 'All ' + built.alike : 'Only this';
+    } else {
+      ui.host.removeAttribute('data-bfx-chosen');
+      ui.box.removeAttribute('style');
+      ui.name.textContent = 'Tap what you want to hide';
+      ui.warn.textContent = '';
+      ui.warn.dataset.level = '';
+    }
+  }
+
   function paint() {
-    if (!target || !ui) return;
-    var rect = target.getBoundingClientRect();
+    if (!ui) return;
+    /* No pointer will come along to replace a selection the page has since
+     * thrown away (a carousel's next slide). */
+    if (touch && target && !target.isConnected) target = hovered = null;
+    if (touch) paintButtons(target ? builtFor(target) : null);
+    if (!target) return;
+    var rect = boxOf(target);
     var box = ui.box.style;
     box.top = rect.top + 'px';
     box.left = rect.left + 'px';
@@ -320,7 +384,7 @@
 
     var inFeed = !!(site() && site().units && target.closest(site().units));
     if (!built.valid) {
-      ui.warn.textContent = 'No selector matches this element — try ↑ for its parent.';
+      ui.warn.textContent = 'No selector matches this element — ' + (touch ? 'tap Bigger.' : 'try ↑ for its parent.');
       ui.warn.dataset.level = 'bad';
     } else if (built.author) {
       ui.warn.textContent = 'Hides every post from ' + built.author + ', wherever it shows up.';
@@ -331,7 +395,7 @@
         ' rebuilds constantly. A keyword block will outlast this rule.';
       ui.warn.dataset.level = 'warn';
     } else if (built.count > 8) {
-      ui.warn.textContent = 'Hides ' + built.count + ' elements on this page. Press a to narrow it to one.';
+      ui.warn.textContent = 'Hides ' + built.count + ' elements on this page.' + (touch ? '' : ' Press a to narrow it to one.');
       ui.warn.dataset.level = 'warn';
     } else {
       ui.warn.textContent = '';
@@ -339,12 +403,112 @@
     }
   }
 
+  function canGrow(el) {
+    var parent = el.parentElement;
+    return !!parent && parent !== document.body && parent !== document.documentElement;
+  }
+
   function resolveTarget() {
     var node = hovered;
-    for (var i = 0; i < climb && node && node.parentElement && node.parentElement !== document.body; i++) {
+    var steps = 0;
+    while (node && steps < climb && canGrow(node)) {
       node = node.parentElement;
+      steps++;
     }
+    climb = steps;
     target = node;
+  }
+
+  function step(by) {
+    climb = Math.max(0, climb + by);
+    resolveTarget();
+  }
+
+  function grow(by) {
+    step(by);
+    paint();
+  }
+
+  /* An element with no box of its own (LinkedIn's posts are display: contents)
+   * is seen as what it holds. */
+  function boxOf(el) {
+    var rect = el.getBoundingClientRect();
+    for (var child = el.firstElementChild; child && !rect.width && !rect.height; child = child.firstElementChild) {
+      rect = child.getBoundingClientRect();
+    }
+    return rect;
+  }
+
+  function sameBox(a, b) {
+    var x = boxOf(a);
+    var y = boxOf(b);
+    return Math.abs(x.width - y.width) < 2 && Math.abs(x.height - y.height) < 2;
+  }
+
+  /* One press goes to a box that looks different. Most elements are wrappers
+   * the size of what they hold, and a button that changes nothing on screen
+   * looks broken. Going down it carries on through the wrappers of the box it
+   * lands on, so Smaller greys out with the last press that showed anything. */
+  function resize(by) {
+    var from = target;
+    var last;
+    do {
+      last = target;
+      step(by);
+    } while (target !== last && sameBox(target, from));
+    while (by < 0 && climb > 0) {
+      last = target;
+      step(-1);
+      if (!sameBox(target, last)) {
+        step(1);
+        break;
+      }
+    }
+    paint();
+    placeBar();
+  }
+
+  /* The bar sits at the bottom, where a finger reaches it, unless that covers
+   * most of what is selected: MangaDex's prompt and Instagram's menu are
+   * fixed to the bottom of the screen. */
+  function placeBar() {
+    ui.host.removeAttribute('data-bfx-top');
+    if (!target) return;
+    var rect = boxOf(target);
+    var top = Math.max(rect.top, 0);
+    var bottom = Math.min(rect.bottom, window.innerHeight);
+    var covered = bottom - Math.max(top, ui.bar.getBoundingClientRect().top);
+    if (covered * 2 > bottom - top) ui.host.setAttribute('data-bfx-top', '');
+  }
+
+  /* From a finger's selection down to what it touched is what Smaller walks,
+   * so a tap in a post starts from the post: the one choice that lasts (see
+   * authorOf), and on Reddit the only way past the invisible link stretched
+   * over each post, which a tap would otherwise take on all of them. */
+  function stepsToPost(el) {
+    var s = site();
+    var post = s && s.units && el.closest(s.units);
+    if (!post || !authorOf(post)) return 0;
+    var steps = 0;
+    for (var node = el; node !== post; node = node.parentElement) steps++;
+    return steps;
+  }
+
+  function select(el) {
+    if (!el || el.nodeType !== 1 || el === document.body || el === document.documentElement) return;
+    hovered = el;
+    climb = stepsToPost(el);
+    resolveTarget();
+    paint();
+    placeBar();
+  }
+
+  function useTouch() {
+    if (touch) return;
+    touch = true;
+    ui.host.setAttribute('data-bfx-touch', '');
+    watcher = setInterval(paint, 400);
+    paint();
   }
 
   /* ---------------------------------------------------------- events -- */
@@ -363,8 +527,8 @@
   function onKey(e) {
     if (!active) return;
     if (e.key === 'Escape') { stop(); }
-    else if (e.key === 'ArrowUp') { climb++; resolveTarget(); paint(); }
-    else if (e.key === 'ArrowDown') { climb = Math.max(0, climb - 1); resolveTarget(); paint(); }
+    else if (e.key === 'ArrowUp') { grow(1); }
+    else if (e.key === 'ArrowDown') { grow(-1); }
     else if (e.key === 'a' || e.key === 'A') { useBroad = !useBroad; paint(); }
     else if (e.key === 'Enter') { confirm(); }
     else { return; }
@@ -372,11 +536,47 @@
     e.stopPropagation();
   }
 
+  /* A mouse has already told onMove what it is over when it clicks. Cancelling
+   * pointerdown stops the mouse events a tap would have made, so a finger only
+   * ever arrives here. A long press ends with no click at all. */
   function swallow(e) {
     if (ui && ui.host.contains(e.target)) return;
+    if (e.type === 'pointerdown') {
+      finger = e.pointerType === 'touch' || e.pointerType === 'pen';
+      if (finger) useTouch();
+    }
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === 'click') confirm();
+    if (e.type === 'click') {
+      if (finger) select(e.target);
+      else confirm();
+    } else if (e.type === 'contextmenu' && finger) {
+      select(e.target);
+    }
+  }
+
+  /* Stopped, never cancelled: that would end the scroll and the tap's click.
+   * Some sites act on these rather than on the click. */
+  function hush(e) {
+    if (!ui || !ui.host.contains(e.target)) e.stopPropagation();
+  }
+
+  /* The page gets none of what happens on the bar. */
+  function onBar(e) {
+    e.stopPropagation();
+    if (e.type !== 'click') return;
+    var button = e.target.closest('[data-act]');
+    var act = button && !button.disabled ? button.getAttribute('data-act') : '';
+    if (act === 'smaller' || act === 'bigger') {
+      resize(act === 'bigger' ? 1 : -1);
+    } else if (act === 'mode') {
+      useBroad = !useBroad;
+      paint();
+    } else if (act === 'cancel') {
+      stop();
+    } else if (act === 'hide') {
+      confirm();
+    }
   }
 
   function confirm() {
@@ -413,18 +613,22 @@
   }
 
   var LISTEN = ['mousedown', 'mouseup', 'click', 'contextmenu', 'pointerdown', 'pointerup', 'auxclick'];
+  var TOUCHES = ['touchstart', 'touchend'];
 
   function start(cb) {
     if (active) { stop(); return; }
     active = true;
     onDone = cb || null;
     climb = 0;
+    finger = false;
     ui = buildUi();
     document.documentElement.setAttribute('data-bfx-picking', '');
     document.addEventListener('mousemove', onMove, true);
     document.addEventListener('keydown', onKey, true);
     LISTEN.forEach(function (type) { document.addEventListener(type, swallow, true); });
+    TOUCHES.forEach(function (type) { document.addEventListener(type, hush, true); });
     window.addEventListener('scroll', paint, true);
+    if (root.matchMedia && root.matchMedia('(pointer: coarse)').matches) useTouch();
   }
 
   function stop() {
@@ -434,7 +638,10 @@
     document.removeEventListener('mousemove', onMove, true);
     document.removeEventListener('keydown', onKey, true);
     LISTEN.forEach(function (type) { document.removeEventListener(type, swallow, true); });
+    TOUCHES.forEach(function (type) { document.removeEventListener(type, hush, true); });
     window.removeEventListener('scroll', paint, true);
+    clearInterval(watcher);
+    touch = false;
     if (ui) ui.host.remove();
     ui = null;
     target = hovered = null;
