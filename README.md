@@ -1,4 +1,8 @@
-# xrnsocial
+<p align="center">
+  <img src="icons/icon128.png" width="72" height="72" alt="">
+</p>
+
+<h1 align="center">xrnsocial</h1>
 
 A browser extension that hides the distracting parts of social sites: ads,
 suggested posts, Reels, sidebars, counts and red badges. Switch off what you
