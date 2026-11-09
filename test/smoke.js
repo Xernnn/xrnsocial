@@ -6,7 +6,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { JSDOM } = require('jsdom');
+const { JSDOM, VirtualConsole } = require('jsdom');
 
 const root = path.join(__dirname, '..');
 let failures = 0;
@@ -100,12 +100,14 @@ const PAGE = `<!doctype html><html><head><title>(3) Facebook</title></head><body
   </div>
 </body></html>`;
 
-/* A window running the real content scripts (except main.js) over `html`. */
-function boot(html, url) {
+/* A window running the real content scripts (except main.js) over `html`.
+ * `quiet` keeps jsdom from printing the stylesheets it cannot parse. */
+function boot(html, url, { quiet = false } = {}) {
   const { window } = new JSDOM(html, {
     url: url || 'https://www.facebook.com/',
     pretendToBeVisual: true,
-    runScripts: 'outside-only'
+    runScripts: 'outside-only',
+    virtualConsole: new VirtualConsole().sendTo(console, { omitJSDOMErrors: quiet })
   });
 
   /* jsdom has no layout: give everything a plausible box so visibility checks
@@ -148,8 +150,11 @@ function boot(html, url) {
   return window;
 }
 
-/* Every stylesheet the engine has applied to a page, as one string. */
-const appliedCss = w => w.document.getElementById('bfx-style').textContent;
+/* Every stylesheet the engine has applied to a page, as one string: its own
+ * sheet, then one per picked rule. */
+const appliedCss = w => [w.document.getElementById('bfx-style')]
+  .concat(Array.from(w.document.querySelectorAll('style[data-bfx-picked]')))
+  .map(el => el.textContent).join('\n');
 
 /* The older markup (role="feed", data-pagelet), which Facebook no longer
  * ships but the rules still accept. Today's markup is tested further down. */
@@ -193,7 +198,7 @@ ok('preset selectors are emitted', css.includes('div[data-pagelet="Stories"]:not
 ok('effect rules keep their own CSS', css.includes('filter: blur(5px)'));
 ok('black & white greys the whole page, with no hover exception',
   css.includes('html { filter: grayscale(1) !important; }') && !/:hover[^{]*\{[^}]*grayscale/.test(css));
-ok('path-scoped rule stays out on other pages', css.includes('#nope') === false, 'path-scoped rule leaked');
+ok('path-scoped rule stays out on other pages', !appliedCss(window).includes('#nope'), 'path-scoped rule leaked');
 ok('each selector is its own rule', css.split('\n').length > BFX_PRESETS.length);
 
 const frame = () => new Promise(r => setTimeout(r, 60));
@@ -333,8 +338,7 @@ BFX_ENGINE.apply(BFX_STORE.merge({
   presets: {},
   custom: [{ id: 'evil', selector: 'x{}body{background:url(https://example.invalid/t)} y', enabled: true, scope: 'all' }]
 }));
-ok('an invalid custom selector is kept out of the stylesheet',
-  !window.document.getElementById('bfx-style').textContent.includes('example.invalid'));
+ok('an invalid custom selector is kept out of the stylesheet', !appliedCss(window).includes('example.invalid'));
 ok('and is reported as broken', BFX_ENGINE.stats().custom.evil.broken.length === 1);
 
 /* As the CSS spec says, the selector parser closes whatever a selector leaves
@@ -369,6 +373,34 @@ console.log('\npicked rules that leave something open');
     custom: smuggle.map((r, i) => Object.assign({ id: 'open' + i, enabled: true, scope: 'all' }, r)) } } }));
   ok('and from settings stored before this check, the comment never reaches the sheet',
     !appliedCss(w).includes('/*'), appliedCss(w).split('\n').filter(l => l.includes('/*')).join('\n'));
+}
+
+/* Sharing one sheet, a picked rule the browser could not read took every
+ * picked rule after it down, while the popup said those still worked and
+ * the bad one matched every div. Even a selector that slips past the check
+ * above must only break itself. jsdom drops a whole sheet over one rule it
+ * cannot parse, and a check that lets everything through shows the rest. */
+{
+  const w = boot(PAGE, undefined, { quiet: true });
+  const S = w.BFX_STORE;
+  w.document.body.insertAdjacentHTML('beforeend', '<p id="victim">picked</p>');
+  const picked = sels => S.merge({ sites: { facebook: { presets: {},
+    custom: sels.map((selector, i) => ({ id: 'p' + i, selector, enabled: true, scope: 'all' })) } } });
+  const check = S.validSelector;
+  S.validSelector = () => true;
+  const broke = ['div /* old', '[title="x', ':is(div'].filter(bad => {
+    w.BFX_ENGINE.apply(picked([bad, '#victim']));
+    return w.getComputedStyle(w.document.getElementById('victim')).display !== 'none';
+  });
+  S.validSelector = check;
+  ok('a picked rule the browser cannot read takes no other picked rule down with it', broke.length === 0,
+    'the rule after it stopped working behind: ' + broke.join('  '));
+
+  w.BFX_ENGINE.apply(picked([':is(div', '[title="x', '#victim']));
+  const health = w.BFX_ENGINE.stats().custom;
+  ok('the popup calls it broken instead of "matches every div", and counts the others for real',
+    health.p0.count === 0 && health.p0.broken.length === 1 && health.p1.count === 0 && health.p1.broken.length === 1 &&
+    health.p2.count === 1 && health.p2.broken.length === 0, JSON.stringify(health));
 }
 
 /* ------------------------------------------------------- late labels -- */

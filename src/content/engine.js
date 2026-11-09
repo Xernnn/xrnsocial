@@ -1,9 +1,10 @@
 /* The rule engine, shared by every site.
  *
  * Two mechanisms, deliberately:
- *   1. A single injected <style> sheet for everything expressible in CSS.
- *      Zero per-frame cost, survives a site's re-renders for free, and it is
- *      applied at document_start so hidden things never flash into view.
+ *   1. An injected <style> sheet for everything expressible in CSS, plus one
+ *      for each picked rule. Zero per-frame cost, survives a site's re-renders
+ *      for free, and applied at document_start so hidden things never flash
+ *      into view.
  *   2. A debounced MutationObserver for the handful of things CSS cannot see:
  *      "is this post an ad?", "does this post contain a word I banned?".
  *
@@ -107,16 +108,6 @@
       if (rule.style) out.push(rule.style);
     });
 
-    var path = location.pathname;
-    s.custom.forEach(function (rule) {
-      if (rule.enabled === false) return;
-      if (rule.scope === 'path' && rule.path !== path) return;
-      /* Stored selectors can come from an imported file, or predate today's
-       * check; one that does not parse, or leaves a comment or a string
-       * open, could close its rule and smuggle in CSS of its own. */
-      if (STORE.validSelector(rule.selector)) selectors.push(rule.selector);
-    });
-
     /* One selector per line: an invalid selector kills only its own rule,
      * not the whole sheet. Sites change; rules will break individually. */
     selectors.forEach(function (sel) {
@@ -124,6 +115,48 @@
     });
 
     return out.join('\n');
+  }
+
+  /* ------------------------------------------------------ picked rules -- */
+
+  /* Picked rules come from the person or from a backup file. Sharing a sheet,
+   * a selector the browser reads differently from STORE.validSelector would
+   * take every rule after it down with it, so each one gets a stylesheet of
+   * its own, where it can only ever break itself. */
+  var PICKED = 'data-bfx-picked';
+  var pickedSheets = [];   // the <style> of each picked rule now applied
+
+  function pickedCss(s) {
+    var out = [];
+    if (!s.enabled) return out;
+    var path = location.pathname;
+    s.custom.forEach(function (rule) {
+      if (rule.enabled === false) return;
+      if (rule.scope === 'path' && rule.path !== path) return;
+      /* Stored selectors can come from an imported file, or predate today's
+       * check; one that does not parse, or leaves a comment or a string
+       * open, could close its rule and smuggle in CSS of its own. */
+      if (!STORE.validSelector(rule.selector)) return;
+      var css = boosted(rule.selector) + '{display:none !important}';
+      if (out.indexOf(css) === -1) out.push(css);
+    });
+    return out;
+  }
+
+  function applyPicked(list) {
+    pickedSheets = pickedSheets.filter(function (el) {
+      if (list.indexOf(el.textContent) !== -1) return true;
+      el.remove();
+      return false;
+    });
+    list.forEach(function (css) {
+      if (pickedSheets.some(function (el) { return el.textContent === css; })) return;
+      var el = document.createElement('style');
+      el.setAttribute(PICKED, '');
+      el.textContent = css;
+      (document.head || document.documentElement).appendChild(el);
+      pickedSheets.push(el);
+    });
   }
 
   /* ------------------------------------------------------ shadow roots -- */
@@ -712,11 +745,14 @@
     ensureStyle();
   }
 
-  /* If the page ever drops the stylesheet (a head rebuild on navigation),
-   * every CSS rule would stop at once; put it back. */
+  /* If the page ever drops the stylesheets (a head rebuild on navigation),
+   * every CSS rule would stop at once; put them back. */
   var css = '';
   function ensureStyle() {
     if (!document.getElementById(STYLE_ID)) styleEl().textContent = css;
+    pickedSheets.forEach(function (el) {
+      if (!el.isConnected) (document.head || document.documentElement).appendChild(el);
+    });
   }
 
   function schedule() {
@@ -857,6 +893,7 @@
 
     css = buildCss(state);
     styleEl().textContent = css;
+    applyPicked(pickedCss(state));
     shadowCss = collectShadow(state);
     styleShadowRoots();
     watchShadowVideos();
