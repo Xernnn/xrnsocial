@@ -111,8 +111,9 @@
     s.custom.forEach(function (rule) {
       if (rule.enabled === false) return;
       if (rule.scope === 'path' && rule.path !== path) return;
-      /* Stored selectors can come from an imported file; one that does not
-       * parse could close its rule and smuggle in CSS of its own. */
+      /* Stored selectors can come from an imported file, or predate today's
+       * check; one that does not parse, or leaves a comment or a string
+       * open, could close its rule and smuggle in CSS of its own. */
       if (STORE.validSelector(rule.selector)) selectors.push(rule.selector);
     });
 

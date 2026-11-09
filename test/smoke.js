@@ -148,6 +148,9 @@ function boot(html, url) {
   return window;
 }
 
+/* Every stylesheet the engine has applied to a page, as one string. */
+const appliedCss = w => w.document.getElementById('bfx-style').textContent;
+
 /* The older markup (role="feed", data-pagelet), which Facebook no longer
  * ships but the rules still accept. Today's markup is tested further down. */
 const window = boot(PAGE);
@@ -333,6 +336,40 @@ BFX_ENGINE.apply(BFX_STORE.merge({
 ok('an invalid custom selector is kept out of the stylesheet',
   !window.document.getElementById('bfx-style').textContent.includes('example.invalid'));
 ok('and is reported as broken', BFX_ENGINE.stats().custom.evil.broken.length === 1);
+
+/* As the CSS spec says, the selector parser closes whatever a selector leaves
+ * open at its end (a comment, a string, a bracket, an escape), so it passes
+ * `a/*`. In a stylesheet that comment runs on into the next rule, up to the
+ * star-slash a second picked rule hides in a string: `a/*` and
+ * `[title="<star-slash>, body{…} x"]` read as `a, body{…}`. jsdom refuses
+ * comments in selectors outright, where Chrome and Firefox read them as the
+ * spec does, so this window reads them their way. */
+console.log('\npicked rules that leave something open');
+{
+  const w = boot(PAGE);
+  const S = w.BFX_STORE;
+  const querySelector = w.DocumentFragment.prototype.querySelector;
+  w.DocumentFragment.prototype.querySelector = function (sel) {
+    return querySelector.call(this, String(sel).replace(/\/\*[\s\S]*?(\*\/|$)/g, ' '));
+  };
+  const open = ['a/*', 'div /* old', '[title="x', ':is(div', 'div\\', '[title="x\\'];
+  ok('a selector that leaves a comment, a string, a bracket or an escape open is refused',
+    open.every(sel => !S.validSelector(sel)), 'accepted: ' + open.filter(sel => S.validSelector(sel)).join('  '));
+  const closed = ['[title="*/, body{color:red} x"]', '[aria-label="/* no comment */"]', 'a[href^="/x"]',
+    ':is(a, b) > p', '#a\\:b', 'div[aria-posinset]:has(h4 a[href="/dana"])'];
+  ok('closed ones still pass, quotes, brackets and escapes included',
+    closed.every(sel => S.validSelector(sel)), 'refused: ' + closed.filter(sel => !S.validSelector(sel)).join('  '));
+
+  const smuggle = [{ selector: 'a/*' }, { selector: '[title="*/, body{background:url(https://example.invalid/t)} x"]' }];
+  const imported = S.fromBackup({ app: 'xrnsocial', version: 2, settings: { sites: { facebook: { custom: smuggle } } } })
+    .sites.facebook.custom.map(r => r.selector);
+  ok('a backup that splits CSS over two picked rules loses the one that opens a comment',
+    imported.length === 1 && imported[0] === smuggle[1].selector, JSON.stringify(imported));
+  w.BFX_ENGINE.apply(S.merge({ sites: { facebook: { presets: {},
+    custom: smuggle.map((r, i) => Object.assign({ id: 'open' + i, enabled: true, scope: 'all' }, r)) } } }));
+  ok('and from settings stored before this check, the comment never reaches the sheet',
+    !appliedCss(w).includes('/*'), appliedCss(w).split('\n').filter(l => l.includes('/*')).join('\n'));
+}
 
 /* ------------------------------------------------------- late labels -- */
 console.log('\nlate labels');
