@@ -1,10 +1,11 @@
 /* The rule engine, shared by every site.
  *
  * Two mechanisms, deliberately:
- *   1. An injected <style> sheet for everything expressible in CSS, plus one
- *      for each picked rule. Zero per-frame cost, survives a site's re-renders
- *      for free, and applied at document_start so hidden things never flash
- *      into view.
+ *   1. An injected <style> sheet for everything expressible in CSS. Zero
+ *      per-frame cost, survives a site's re-renders for free, and applied at
+ *      document_start so hidden things never flash into view. Picked rules,
+ *      which say whom someone hides, are kept out of the page: the background
+ *      page injects them, one sheet each (see "picked rules" below).
  *   2. A debounced MutationObserver for the handful of things CSS cannot see:
  *      "is this post an ad?", "does this post contain a word I banned?".
  *
@@ -122,9 +123,17 @@
   /* Picked rules come from the person or from a backup file. Sharing a sheet,
    * a selector the browser reads differently from STORE.validSelector would
    * take every rule after it down with it, so each one gets a stylesheet of
-   * its own, where it can only ever break itself. */
-  var PICKED = 'data-bfx-picked';
-  var pickedSheets = [];   // the <style> of each picked rule now applied
+   * its own, where it can only ever break itself.
+   *
+   * They also say whom and what the person hides, and a site's scripts can
+   * read anything in its DOM, <style> included. So these sheets never go in
+   * the page: the background page injects them (chrome.scripting.insertCSS),
+   * where the page can neither read nor remove them, as user styles, whose
+   * !important no rule of the site's outranks. The price is a round trip:
+   * they land a moment after the page's own sheet. */
+  var injected = [];       // the css of each picked rule the background applied
+  var wanted = [];         // what the last apply() asked for
+  var sending = false;     // a change is on its way there
 
   function pickedCss(s) {
     var out = [];
@@ -144,19 +153,32 @@
   }
 
   function applyPicked(list) {
-    pickedSheets = pickedSheets.filter(function (el) {
-      if (list.indexOf(el.textContent) !== -1) return true;
-      el.remove();
-      return false;
-    });
-    list.forEach(function (css) {
-      if (pickedSheets.some(function (el) { return el.textContent === css; })) return;
-      var el = document.createElement('style');
-      el.setAttribute(PICKED, '');
-      el.textContent = css;
-      (document.head || document.documentElement).appendChild(el);
-      pickedSheets.push(el);
-    });
+    wanted = list;
+    if (!sending) sendPicked();
+  }
+
+  /* One change at a time, each the difference between what is applied and
+   * what is wanted by then. One that fails is tried again with the next
+   * change of settings or page. */
+  function sendPicked() {
+    var add = wanted.filter(function (css) { return injected.indexOf(css) === -1; });
+    var remove = injected.filter(function (css) { return wanted.indexOf(css) === -1; });
+    if (!add.length && !remove.length) return;
+    sending = true;
+    var done = function (ok) {
+      sending = false;
+      if (!ok) return;
+      injected = injected.filter(function (css) { return remove.indexOf(css) === -1; }).concat(add);
+      sendPicked();
+    };
+    try {
+      chrome.runtime.sendMessage({ type: 'bfx:css', add: add, remove: remove }, function (res) {
+        void chrome.runtime.lastError;   // the background page was not reached
+        done(!!(res && res.ok));
+      });
+    } catch (e) {
+      done(false);                       // the extension was reloaded under this page
+    }
   }
 
   /* ------------------------------------------------------ shadow roots -- */
@@ -579,7 +601,7 @@
     });
   }
 
-  /* The term that matched, for the placeholder, or null. */
+  /* The term that matched, or null. */
   function matchKeyword(unit, ctx) {
     var raw = ctx.text();
     var text = raw.toLowerCase();
@@ -730,9 +752,10 @@
           } catch (e) { /* one bad rule must not stop the others */ }
         }
         if (!hidden && keywords.length) {
-          var term = matchKeyword(unit, ctx);
-          if (term) {
-            hide(unit, 'keyword', 'word: ' + term);
+          /* The "show" bar is in the page, where the site's scripts can
+           * read it, so it never says which word. */
+          if (matchKeyword(unit, ctx)) {
+            hide(unit, 'keyword', 'a word you blocked');
             hidden = true;
           }
         }
@@ -754,14 +777,12 @@
     ensureStyle();
   }
 
-  /* If the page ever drops the stylesheets (a head rebuild on navigation),
-   * every CSS rule would stop at once; put them back. */
+  /* If the page ever drops the stylesheet (a head rebuild on navigation),
+   * every CSS rule would stop at once; put it back. (Picked rules are out of
+   * its reach.) */
   var css = '';
   function ensureStyle() {
     if (!document.getElementById(STYLE_ID)) styleEl().textContent = css;
-    pickedSheets.forEach(function (el) {
-      if (!el.isConnected) (document.head || document.documentElement).appendChild(el);
-    });
   }
 
   function schedule() {

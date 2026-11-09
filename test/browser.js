@@ -272,8 +272,8 @@ async function until(fn, timeout = 3000) {
       const el = document.getElementById('u-kw');
       return el.hasAttribute('data-bfx-note') && getComputedStyle(el).display === 'block';
     })));
-    ok('the bar names the word', /word: crypto/.test(await page.evaluate(() =>
-      getComputedStyle(document.getElementById('u-kw'), '::before').content)));
+    const bar = await page.evaluate(() => getComputedStyle(document.getElementById('u-kw'), '::before').content);
+    ok('the bar says a word was blocked, never which: the site can read it', /a word you blocked/.test(bar) && !/crypto/i.test(bar), bar);
     ok('the post itself stays hidden behind it', await page.evaluate(() =>
       getComputedStyle(document.querySelector('#u-kw h4')).display === 'none'));
     await page.click('#u-kw');
@@ -1005,8 +1005,11 @@ async function until(fn, timeout = 3000) {
     ok('Hide saves the rule', await until(async () => (await picked()).length === 1) && (await picked())[0].selector.includes('r/cats'),
       JSON.stringify(await picked()));
     ok('the post goes and the bar with it', await until(() => isHidden('a-sub')) && !(await pickerNow()));
-    const toast = await page.evaluate(() => { const t = document.querySelector('.bfx-toast'); const r = t.getBoundingClientRect(); return { left: r.left, right: r.right, height: r.height }; });
+    ok('and the rule that hides it is nowhere the site can read it', await page.evaluate(() =>
+      !document.documentElement.outerHTML.includes('r/cats"]') && [...document.querySelectorAll('style')].every(s => !s.textContent.includes('r/cats'))));
+    const toast = await page.evaluate(() => { const t = document.querySelector('.bfx-toast'); const r = t.getBoundingClientRect(); return { left: r.left, right: r.right, height: r.height, text: t.textContent }; });
     ok('the toast fits the phone', toast.left >= 0 && toast.right <= 412, JSON.stringify(toast));
+    ok('and keeps what it names out of the page', toast.text === '' && toast.height > 0, JSON.stringify(toast));
 
     await resetState();
     await loadByFinger();

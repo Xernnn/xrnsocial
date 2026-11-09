@@ -603,10 +603,13 @@
     });
   }
 
+  /* The toast names what was just hidden ("Posts from Dana"), which is not
+   * the site's business: its words sit in a closed shadow root, which the
+   * page's scripts cannot open. The box itself is styled as before. */
   function toast(text) {
     var el = document.createElement('div');
     el.className = 'bfx-toast';
-    el.textContent = text;
+    el.attachShadow({ mode: 'closed' }).textContent = text;
     document.documentElement.appendChild(el);
     setTimeout(function () { el.classList.add('bfx-toast-out'); }, 2600);
     setTimeout(function () { el.remove(); }, 3100);

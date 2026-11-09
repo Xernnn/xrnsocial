@@ -25,7 +25,8 @@ Nothing leaves your browser: no network requests, no analytics, no accounts.
   Picking a whole post hides posts from that author, page or community.
 - **Word blocks.** Hide posts containing a word, or a `/regex/i`.
 - **"Show" bars.** If you like, a hidden post can leave a one-line bar that
-  you click to bring the post back.
+  you click to bring the post back. A bar says why a post went, but never
+  which blocked word: the site can read it.
 - **Pause.** `Alt+Shift+B`, or the switch on the Sites screen, pauses and
   resumes every rule.
 - **Match counts.** The popup shows how many things each switch is hiding
@@ -152,6 +153,10 @@ comment explains how to run it.
 - **One stylesheet**, injected before the page draws, hides everything CSS
   can express. Hidden things never flash into view, and it costs nothing per
   frame.
+- **Picked rules stay out of the page.** They say whose posts you hide, and a
+  site's scripts can read anything in its page, stylesheets included. So the
+  background page injects them with `chrome.scripting`, one stylesheet each:
+  the site can't read them, and one broken rule can't break the others.
 - **A debounced `MutationObserver`** handles what CSS can't see, such as
   whether a post is an ad or contains a blocked word. Posts are judged again
   whenever their content changes.
@@ -187,6 +192,10 @@ all of them.
   counts, share). Use the switches for those.
 - **Facebook Story ads** are untested: the story viewer couldn't be stepped
   through automatically.
+- **Sites can tell that something is hidden.** Their scripts can see which
+  posts are hidden and by what kind of rule, though not the words you block
+  or the accounts you picked. Picked rules arrive a moment after the page's
+  own stylesheet, by way of the background page.
 
 ## Project layout
 
@@ -195,7 +204,7 @@ manifest.json
 src/common/      site list and settings storage, shared by every page
 src/sites/       one rule pack per site
 src/content/     engine, picker, and the bootstrap that runs on each site
-src/background/  keyboard shortcuts and the toolbar badge
+src/background/  keyboard shortcuts, the toolbar badge, picked rules' stylesheets
 src/popup/       the popup, with each site's icons in src/popup/sites/
 src/options/     backup and restore
 scripts/zip.js   packs the extension (npm run zip)
