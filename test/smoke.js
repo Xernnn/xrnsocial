@@ -562,6 +562,33 @@ console.log('\nfacebook.com as of October 2026 (test/fixtures/feed.html)');
   ok('Marketplace: the tile labelled "Ad" goes', by('mp-ad2') === 'adSweep', 'got ' + by('mp-ad2'));
   ok('Marketplace: the listings and the grid stay', shown('mp-1') && shown('mp-2') && shown('mp-grid'));
 
+  /* An ad's label is matched whole, never as the start of a name, and a
+   * post's title names its author. Ads leave no "show" bar, so a Page taken
+   * for one would simply be gone. */
+  const named = ['u-page-es', 'u-page-ru', 'u-page-ja'];
+  ok('posts from a Page or group whose name starts with an ad word stay', named.every(shown),
+    named.filter(id => !shown(id)).map(id => id + ' hidden by ' + by(id)).join(', '));
+  ok('so does one from a group named the word itself: its title is no label', shown('u-page-word'), 'hidden by ' + by('u-page-word'));
+  const cards = ['g-ru', 'g-en', 'g-pt', 'g-ok'];
+  ok('and their cards in a list of groups', cards.every(shown),
+    cards.filter(id => !shown(id)).map(id => id + ' hidden by ' + by(id)).join(', '));
+  /* The words the prefix used to cover, whole: the issue ad, labelled in each. */
+  const labels = ['Patrocinado', 'Patrocinada', 'Sponsorisé', 'Sponsorizzata', 'Gesponsert', 'Gesponsord',
+    'Publicidad', 'Publicidade', 'Sponsorowane', 'Реклама', '広告', 'Sponsored ·'];
+  const relabelled = labels.map((word, i) => {
+    const post = $$('u-issue').cloneNode(true);
+    post.id = 'u-issue-' + i;
+    post.setAttribute('aria-posinset', String(40 + i));
+    post.querySelector(':scope > span[dir="auto"]').textContent = word;
+    $$('feedbox').appendChild(w.document.createElement('div')).appendChild(post);
+    return post;
+  });
+  await frame();
+  const missed = relabelled.filter(post => post.getAttribute('data-bfx-hidden-by') !== 'sponsored');
+  ok('an ad labelled in any of those languages still goes', !missed.length,
+    'missed: ' + missed.map(post => post.querySelector(':scope > span[dir="auto"]').textContent).join(', '));
+  relabelled.forEach(post => post.parentElement.remove());
+
   /* React rewrites className when it re-renders; that used to un-hide ads. */
   $$('u-ad').className = 'x1n2onr6 x1ja2u2z';
   ok('a class rewrite cannot un-hide anything', by('u-ad') === 'sponsored');

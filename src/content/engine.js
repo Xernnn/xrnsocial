@@ -437,25 +437,34 @@
 
   /* ----------------------------------------------------------- ad labels -- */
 
-  /* Labels sites print on ads, as a prefix of the label's visible text. */
-  var AD_WORD = /^(sponsored|sponsrad|gesponsert|gesponsord|patrocinad|publicidad|sponsoris|sponsorizzat|sponsorowane|sponsorlu|bersponsor|được tài trợ|publicidade|реклама|广告|廣告|広告|إعلان)/i;
-  var PARTNER_WORD = /^paid (partnership|promotion)/i;
+  /* Words sites print as an ad's label, matched against the label's whole
+   * visible text: a Page called "Publicidad Creativa MX" or a group called
+   * "Реклама и объявления Москва" starts with one and is no ad. The forms a
+   * word takes to agree with what it labels are spelled out. */
+  var AD_WORD = /^(sponsored|sponsrad|gesponsert|gesponsord|patrocinad[oa]|publicidad|publicidade|sponsoris[ée]e?|sponsorizzat[oa]|sponsorowane|sponsorlu|bersponsor|được tài trợ|реклама|广告|廣告|広告|إعلان)$/i;
+  /* Branded content: "Paid partnership", alone or with its brand. */
+  var PARTNER_WORD = /^paid (partnership|promotion)( with .+)?$/i;
 
-  /* The whole label, for labels too short to match as a prefix. */
+  /* Short labels, matched whole as well. */
   var AD_LABEL = /^(ad|sponsored|quảng cáo|được tài trợ|publicidad|anuncio|patrocinado|anúncio|publicité|sponsorisé|anzeige|gesponsert|annuncio|sponsorizzato|iklan|bersponsor|реклама|广告|廣告|広告|إعلان)$/i;
 
   /* Facebook breaks the word "Sponsored" into shuffled spans and pads it with
    * decoy letters that CSS hides, so the raw text reads like "SpSonsoreedd".
    * This prefilter is loose on purpose; visibleText() then makes the call. */
   var FUZZY = /s.{0,3}p.{0,3}o.{0,3}n.{0,3}s.{0,3}o.{0,3}r/i;
+  /* Just as loose: raw text that starts like one of the words above. */
+  var AD_START = /^(sponsored|sponsrad|gesponsert|gesponsord|patrocinad|publicidad|sponsoris|sponsorizzat|sponsorowane|sponsorlu|bersponsor|được tài trợ|реклама|广告|廣告|広告|إعلان|paid (partnership|promotion))/i;
+
+  /* A dot or bullet the label shares its element with is not part of it. */
+  var EDGE_DOTS = /^[\s·•]+|[\s·•]+$/g;
 
   var INVISIBLE_CHARS = /[​-‍⁠﻿]/g;
 
   function looksSponsored(el) {
     var raw = (el.textContent || '').replace(INVISIBLE_CHARS, '').trim();
     if (!raw || raw.length > 40) return false;
-    if (!FUZZY.test(raw) && !AD_WORD.test(raw) && !AD_LABEL.test(raw) && !PARTNER_WORD.test(raw)) return false;
-    var shown = visibleText(el, 40).replace(INVISIBLE_CHARS, '').replace(/\s+/g, ' ');
+    if (!FUZZY.test(raw) && !AD_START.test(raw) && !AD_LABEL.test(raw)) return false;
+    var shown = visibleText(el, 40).replace(INVISIBLE_CHARS, '').replace(/\s+/g, ' ').replace(EDGE_DOTS, '');
     return AD_WORD.test(shown) || AD_LABEL.test(shown) || PARTNER_WORD.test(shown);
   }
 
