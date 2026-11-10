@@ -143,11 +143,43 @@
 
   /* Custom selectors are pasted into a stylesheet as `selector{...}`, so one
    * that is not a real selector could close the rule and inject CSS of its
-   * own (url() requests included). Anything the selector parser accepts is
-   * safe there. Without a DOM (the service worker) nothing is accepted. */
+   * own (url() requests included). The selector parser alone is not enough:
+   * as the CSS spec says, it closes whatever a selector leaves open at its
+   * end, so it passes `a/*`, whose comment then runs on into the rules after
+   * it. A selector must also be self-contained: no comments (none is ever
+   * picked), every string and bracket closed, no escape cut off by the end.
+   * Without a DOM (the service worker) nothing is accepted. */
+  var CLOSER = { '(': ')', '[': ']' };
+
+  function selfContained(sel) {
+    var open = [];
+    var quote = '';
+    for (var i = 0; i < sel.length; i++) {
+      var c = sel.charAt(i);
+      if (c === '\\') {
+        if (i === sel.length - 1) return false;
+        i++;                       // an escaped character is never syntax
+      } else if (quote) {
+        if (c === quote) quote = '';
+        else if (c === '\n' || c === '\r' || c === '\f') return false;
+      } else if (c === '"' || c === "'") {
+        quote = c;
+      } else if (c === '/' && sel.charAt(i + 1) === '*') {
+        return false;
+      } else if (CLOSER[c]) {
+        open.push(CLOSER[c]);
+      } else if (c === ')' || c === ']') {
+        if (open.pop() !== c) return false;
+      } else if (c === '{' || c === '}' || c === ';') {
+        return false;
+      }
+    }
+    return !quote && !open.length;
+  }
+
   var probe = null;
   function validSelector(sel) {
-    if (typeof sel !== 'string' || !sel.trim()) return false;
+    if (typeof sel !== 'string' || !sel.trim() || !selfContained(sel)) return false;
     if (typeof document === 'undefined') return false;
     probe = probe || document.createDocumentFragment();
     try {

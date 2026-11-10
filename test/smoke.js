@@ -6,7 +6,8 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { JSDOM } = require('jsdom');
+const vm = require('vm');
+const { JSDOM, VirtualConsole } = require('jsdom');
 
 const root = path.join(__dirname, '..');
 let failures = 0;
@@ -100,12 +101,19 @@ const PAGE = `<!doctype html><html><head><title>(3) Facebook</title></head><body
   </div>
 </body></html>`;
 
-/* A window running the real content scripts (except main.js) over `html`. */
-function boot(html, url) {
+/* Each window's background page, as far as its content scripts can tell:
+ * the stylesheets they asked it to inject into the tab, the way
+ * chrome.scripting.insertCSS does, outside the page. */
+const backgrounds = new WeakMap();
+
+/* A window running the real content scripts (except main.js) over `html`.
+ * `quiet` keeps jsdom from printing the stylesheets it cannot parse. */
+function boot(html, url, { quiet = false } = {}) {
   const { window } = new JSDOM(html, {
     url: url || 'https://www.facebook.com/',
     pretendToBeVisual: true,
-    runScripts: 'outside-only'
+    runScripts: 'outside-only',
+    virtualConsole: new VirtualConsole().sendTo(console, { omitJSDOMErrors: quiet })
   });
 
   /* jsdom has no layout: give everything a plausible box so visibility checks
@@ -117,6 +125,8 @@ function boot(html, url) {
   };
 
   const storage = {};
+  const background = { sheets: [] };
+  backgrounds.set(window, background);
   window.chrome = {
     storage: {
       local: {
@@ -125,7 +135,20 @@ function boot(html, url) {
       },
       onChanged: { addListener: () => {} }
     },
-    runtime: { onMessage: { addListener: () => {} }, lastError: null }
+    runtime: {
+      onMessage: { addListener: () => {} },
+      lastError: null,
+      sendMessage: (msg, cb) => {
+        if (msg && msg.type === 'bfx:css') {
+          msg.add.forEach(css => background.sheets.push(css));
+          msg.remove.forEach(css => {
+            const at = background.sheets.indexOf(css);
+            if (at !== -1) background.sheets.splice(at, 1);
+          });
+        }
+        if (cb) setTimeout(() => cb({ ok: true }), 0);
+      }
+    }
   };
 
   for (const file of [
@@ -146,6 +169,19 @@ function boot(html, url) {
     window.eval(fs.readFileSync(path.join(root, file), 'utf8'));
   }
   return window;
+}
+
+/* Every stylesheet the engine has applied to a page, as one string: the
+ * page's own, then each one the background page injected. */
+const appliedCss = w => [w.document.getElementById('bfx-style').textContent]
+  .concat(backgrounds.get(w).sheets).join('\n');
+
+/* Everything a site's own scripts can read: its markup, every attribute and
+ * every <style> in it, open shadow roots included. */
+function readable(w) {
+  let out = w.document.documentElement.outerHTML;
+  w.document.querySelectorAll('*').forEach(el => { if (el.shadowRoot) out += el.shadowRoot.innerHTML; });
+  return out;
 }
 
 /* The older markup (role="feed", data-pagelet), which Facebook no longer
@@ -190,7 +226,7 @@ ok('preset selectors are emitted', css.includes('div[data-pagelet="Stories"]:not
 ok('effect rules keep their own CSS', css.includes('filter: blur(5px)'));
 ok('black & white greys the whole page, with no hover exception',
   css.includes('html { filter: grayscale(1) !important; }') && !/:hover[^{]*\{[^}]*grayscale/.test(css));
-ok('path-scoped rule stays out on other pages', css.includes('#nope') === false, 'path-scoped rule leaked');
+ok('path-scoped rule stays out on other pages', !appliedCss(window).includes('#nope'), 'path-scoped rule leaked');
 ok('each selector is its own rule', css.split('\n').length > BFX_PRESETS.length);
 
 const frame = () => new Promise(r => setTimeout(r, 60));
@@ -330,9 +366,158 @@ BFX_ENGINE.apply(BFX_STORE.merge({
   presets: {},
   custom: [{ id: 'evil', selector: 'x{}body{background:url(https://example.invalid/t)} y', enabled: true, scope: 'all' }]
 }));
-ok('an invalid custom selector is kept out of the stylesheet',
-  !window.document.getElementById('bfx-style').textContent.includes('example.invalid'));
+ok('an invalid custom selector is kept out of the stylesheet', !appliedCss(window).includes('example.invalid'));
 ok('and is reported as broken', BFX_ENGINE.stats().custom.evil.broken.length === 1);
+
+/* As the CSS spec says, the selector parser closes whatever a selector leaves
+ * open at its end (a comment, a string, a bracket, an escape), so it passes
+ * `a/*`. In a stylesheet that comment runs on into the next rule, up to the
+ * star-slash a second picked rule hides in a string: `a/*` and
+ * `[title="<star-slash>, body{…} x"]` read as `a, body{…}`. jsdom refuses
+ * comments in selectors outright, where Chrome and Firefox read them as the
+ * spec does, so this window reads them their way. */
+console.log('\npicked rules that leave something open');
+{
+  const w = boot(PAGE);
+  const S = w.BFX_STORE;
+  const querySelector = w.DocumentFragment.prototype.querySelector;
+  w.DocumentFragment.prototype.querySelector = function (sel) {
+    return querySelector.call(this, String(sel).replace(/\/\*[\s\S]*?(\*\/|$)/g, ' '));
+  };
+  const open = ['a/*', 'div /* old', '[title="x', ':is(div', 'div\\', '[title="x\\'];
+  ok('a selector that leaves a comment, a string, a bracket or an escape open is refused',
+    open.every(sel => !S.validSelector(sel)), 'accepted: ' + open.filter(sel => S.validSelector(sel)).join('  '));
+  const closed = ['[title="*/, body{color:red} x"]', '[aria-label="/* no comment */"]', 'a[href^="/x"]',
+    ':is(a, b) > p', '#a\\:b', 'div[aria-posinset]:has(h4 a[href="/dana"])'];
+  ok('closed ones still pass, quotes, brackets and escapes included',
+    closed.every(sel => S.validSelector(sel)), 'refused: ' + closed.filter(sel => !S.validSelector(sel)).join('  '));
+
+  const smuggle = [{ selector: 'a/*' }, { selector: '[title="*/, body{background:url(https://example.invalid/t)} x"]' }];
+  const imported = S.fromBackup({ app: 'xrnsocial', version: 2, settings: { sites: { facebook: { custom: smuggle } } } })
+    .sites.facebook.custom.map(r => r.selector);
+  ok('a backup that splits CSS over two picked rules loses the one that opens a comment',
+    imported.length === 1 && imported[0] === smuggle[1].selector, JSON.stringify(imported));
+  w.BFX_ENGINE.apply(S.merge({ sites: { facebook: { presets: {},
+    custom: smuggle.map((r, i) => Object.assign({ id: 'open' + i, enabled: true, scope: 'all' }, r)) } } }));
+  ok('and from settings stored before this check, the comment never reaches the sheet',
+    !appliedCss(w).includes('/*'), appliedCss(w).split('\n').filter(l => l.includes('/*')).join('\n'));
+}
+
+/* Sharing one sheet, a picked rule the browser could not read took every
+ * picked rule after it down, while the popup said those still worked and
+ * the bad one matched every div. Even a selector that slips past the check
+ * above must only break itself, so each picked rule is a stylesheet of its
+ * own (applied by the background page, out of jsdom's sight: what each one
+ * does is checked in real browsers). A check that lets everything through
+ * shows the rest. */
+{
+  const w = boot(PAGE, undefined, { quiet: true });
+  const S = w.BFX_STORE;
+  w.document.body.insertAdjacentHTML('beforeend', '<p id="victim">picked</p>');
+  const picked = sels => S.merge({ sites: { facebook: { presets: {},
+    custom: sels.map((selector, i) => ({ id: 'p' + i, selector, enabled: true, scope: 'all' })) } } });
+  const check = S.validSelector;
+  S.validSelector = () => true;
+  const broke = [];
+  for (const bad of ['div /* old', '[title="x', ':is(div']) {
+    w.BFX_ENGINE.apply(picked([bad, '#victim']));
+    await frame();
+    const sheets = backgrounds.get(w).sheets;
+    if (!sheets.includes('#victim:not(#bfx-z){display:none !important}') ||
+        sheets.some(css => css.includes(bad) && css.includes('#victim'))) broke.push(bad);
+  }
+  S.validSelector = check;
+  ok('a picked rule the browser cannot read takes no other picked rule down with it', broke.length === 0,
+    'the rule after it stopped working behind: ' + broke.join('  '));
+
+  w.BFX_ENGINE.apply(picked([':is(div', '[title="x', '#victim']));
+  const health = w.BFX_ENGINE.stats().custom;
+  ok('the popup calls it broken instead of "matches every div", and counts the others for real',
+    health.p0.count === 0 && health.p0.broken.length === 1 && health.p1.count === 0 && health.p1.broken.length === 1 &&
+    health.p2.count === 1 && health.p2.broken.length === 0, JSON.stringify(health));
+}
+
+/* Picked rules name the people and things someone hides, and blocked words
+ * are theirs too. A site's scripts can read anything in its DOM, so neither
+ * may be written there: picked rules go to the background page as sheets of
+ * their own, and the "show" bar, the only text left, names no word. */
+console.log('\nwhat the page can read');
+{
+  const w = boot(fs.readFileSync(path.join(__dirname, 'fixtures/feed.html'), 'utf8'));
+  const S = w.BFX_STORE;
+  const $$ = id => w.document.getElementById(id);
+  const author = w.BFX_PICKER.selectorFor($$('u-organic')).selector;
+  const settings = on => S.merge({ placeholders: true, keywords: { enabled: true, terms: ['crypto', '/lake\\b/i'] },
+    sites: { facebook: { custom: [{ id: 'dana', selector: author, label: 'Posts from Dana Example', enabled: on, scope: 'all' }] } } });
+  w.BFX_ENGINE.apply(settings(true));
+  await frame();
+  const sheets = backgrounds.get(w).sheets;
+  ok('a picked author is hidden by a sheet of its own, from the background page',
+    sheets.length === 1 && sheets[0].includes('a[href="/dana"]') && sheets[0].endsWith('{display:none !important}'), JSON.stringify(sheets));
+  ok('and is nowhere in the page: no stylesheet, no attribute names them', !readable(w).includes('a[href="/dana"]') &&
+    !readable(w).includes(':has(h4'), Array.from(w.document.querySelectorAll('style')).map(el => el.textContent).filter(t => /dana/.test(t)).join('\n'));
+  ok('posts hidden by blocked words carry no word: not even a pattern', $$('u-kw').getAttribute('data-bfx-hidden-by') === 'keyword' &&
+    $$('u-organic').getAttribute('data-bfx-hidden-by') === 'keyword' && !/crypto/i.test(readable(w).replace(/Buy CRYPTO now/g, '')) &&
+    !readable(w).includes('/lake'), [$$('u-kw').getAttribute('data-bfx-note'), $$('u-organic').getAttribute('data-bfx-note')].join(' | '));
+  w.BFX_PICKER.toast('Hidden \u201cPosts from Dana Example\u201d \u2014 undo from the xrnsocial popup');
+  ok('the toast that confirms a pick keeps its words out of the page\'s reach',
+    !!w.document.querySelector('.bfx-toast') && !readable(w).includes('Posts from Dana'), w.document.querySelector('.bfx-toast') && w.document.querySelector('.bfx-toast').outerHTML);
+  w.BFX_ENGINE.apply(settings(false));
+  await frame();
+  ok('turning the rule off takes its sheet back out', backgrounds.get(w).sheets.length === 0, JSON.stringify(backgrounds.get(w).sheets));
+  w.BFX_ENGINE.apply(settings(true));
+  await frame();
+  w.BFX_ENGINE.apply(S.merge({ enabled: false }));
+  await frame();
+  ok('and so does pausing', backgrounds.get(w).sheets.length === 0, JSON.stringify(backgrounds.get(w).sheets));
+}
+
+/* The background page's side of it: each sheet goes in as a user style, the
+ * kind a page cannot outrank or read, into the document that asked for it. */
+console.log('\nthe background page');
+{
+  const calls = [];
+  let onMessage = null;
+  const none = { addListener: () => {} };
+  const chrome = {
+    runtime: { id: 'xrnsocial', onMessage: { addListener: fn => { onMessage = fn; } }, onInstalled: none, onStartup: none },
+    storage: { local: { get: (k, cb) => cb({}), set: (o, cb) => cb && cb() }, onChanged: none },
+    commands: { onCommand: none },
+    action: { setBadgeText: () => {}, setBadgeBackgroundColor: () => {} },
+    tabs: { query: () => Promise.resolve([]), sendMessage: () => Promise.resolve() },
+    scripting: {
+      insertCSS: d => { calls.push(['insert', d]); return Promise.resolve(); },
+      removeCSS: d => { calls.push(['remove', d]); return Promise.resolve(); }
+    }
+  };
+  const worker = vm.createContext({ chrome, console });
+  worker.self = worker;
+  for (const file of ['src/common/sites.js', 'src/common/storage.js', 'src/background/service-worker.js']) {
+    vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), worker);
+  }
+  const ask = (msg, sender) => new Promise(resolve => {
+    if (!onMessage) return resolve(null);
+    if (onMessage(msg, sender, resolve) !== true) resolve(null);
+  });
+  const css = { add: ['a{display:none !important}'], remove: ['b{display:none !important}'] };
+  const steps = list => list.map(([op, d]) => op + ' ' + d.css).join(', ');
+  const chromeTab = await ask(Object.assign({ type: 'bfx:css' }, css), { tab: { id: 7 }, frameId: 0, documentId: 'doc-1' });
+  const first = calls.splice(0);
+  ok('in Chrome a sheet goes into the very document that sent it, as a user style, before the old one comes out',
+    !!chromeTab && chromeTab.ok && first.every(([, d]) => d.origin === 'USER' &&
+      JSON.stringify(d.target) === '{"tabId":7,"documentIds":["doc-1"]}') &&
+    steps(first) === 'remove a{display:none !important}, insert a{display:none !important}, remove b{display:none !important}',
+    JSON.stringify(first));
+  ok('…and a copy of it already there comes out first, so a sheet sent twice is in once', steps(first).startsWith('remove a'));
+  const firefoxTab = await ask(Object.assign({ type: 'bfx:css' }, css), { tab: { id: 7 }, frameId: 0 });
+  const next = calls.splice(0);
+  ok('Firefox names no document: then it is the frame that sent it', !!firefoxTab && firefoxTab.ok && next.length === 3 &&
+    next.every(([, d]) => JSON.stringify(d.target) === '{"tabId":7,"frameIds":[0]}'), JSON.stringify(next));
+  const fromPopup = await ask(Object.assign({ type: 'bfx:css' }, css), { id: 'xrnsocial', url: 'chrome-extension://x/src/popup/popup.html' });
+  ok('a message from anywhere but a tab injects nothing', fromPopup === null && calls.length === 0, JSON.stringify(calls));
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
+  ok('the manifest asks for the scripting permission it needs', manifest.permissions.includes('scripting'));
+}
 
 /* ------------------------------------------------------- late labels -- */
 console.log('\nlate labels');
@@ -352,9 +537,11 @@ BFX_ENGINE.apply(Object.assign({}, everything, { placeholders: true }));
 await frame();
 const sheet = window.document.getElementById('bfx-style').textContent;
 ok('placeholder styles are emitted', sheet.includes('[data-bfx-hidden-by][data-bfx-note]::before'));
-ok('a word-blocked post leaves a placeholder naming the word',
-  $('u-kw').hasAttribute('data-bfx-note') && /word: crypto/.test($('u-kw').getAttribute('data-bfx-note') || ''),
-  $('u-kw').getAttribute('data-bfx-note'));
+/* The bar is in the page, where the site's scripts can read it: it says a
+ * word was blocked, never which. */
+ok('a word-blocked post leaves a placeholder that says why, without the word',
+  /a word you blocked/.test($('u-kw').getAttribute('data-bfx-note') || '') &&
+  !/crypto|give/i.test($('u-kw').getAttribute('data-bfx-note')), $('u-kw').getAttribute('data-bfx-note'));
 ok('a text-rule post names its rule',
   /Suggested posts/.test($('u-sug').getAttribute('data-bfx-note') || ''));
 ok('ads leave no placeholder', !$('u-ad').hasAttribute('data-bfx-note'));
@@ -492,6 +679,33 @@ console.log('\nfacebook.com as of October 2026 (test/fixtures/feed.html)');
   ok('Marketplace: the tile with a word-joiner label goes', by('mp-ad') === 'adSweep', 'got ' + by('mp-ad'));
   ok('Marketplace: the tile labelled "Ad" goes', by('mp-ad2') === 'adSweep', 'got ' + by('mp-ad2'));
   ok('Marketplace: the listings and the grid stay', shown('mp-1') && shown('mp-2') && shown('mp-grid'));
+
+  /* An ad's label is matched whole, never as the start of a name, and a
+   * post's title names its author. Ads leave no "show" bar, so a Page taken
+   * for one would simply be gone. */
+  const named = ['u-page-es', 'u-page-ru', 'u-page-ja'];
+  ok('posts from a Page or group whose name starts with an ad word stay', named.every(shown),
+    named.filter(id => !shown(id)).map(id => id + ' hidden by ' + by(id)).join(', '));
+  ok('so does one from a group named the word itself: its title is no label', shown('u-page-word'), 'hidden by ' + by('u-page-word'));
+  const cards = ['g-ru', 'g-en', 'g-pt', 'g-ok'];
+  ok('and their cards in a list of groups', cards.every(shown),
+    cards.filter(id => !shown(id)).map(id => id + ' hidden by ' + by(id)).join(', '));
+  /* The words the prefix used to cover, whole: the issue ad, labelled in each. */
+  const labels = ['Patrocinado', 'Patrocinada', 'Sponsorisé', 'Sponsorizzata', 'Gesponsert', 'Gesponsord',
+    'Publicidad', 'Publicidade', 'Sponsorowane', 'Реклама', '広告', 'Sponsored ·'];
+  const relabelled = labels.map((word, i) => {
+    const post = $$('u-issue').cloneNode(true);
+    post.id = 'u-issue-' + i;
+    post.setAttribute('aria-posinset', String(40 + i));
+    post.querySelector(':scope > span[dir="auto"]').textContent = word;
+    $$('feedbox').appendChild(w.document.createElement('div')).appendChild(post);
+    return post;
+  });
+  await frame();
+  const missed = relabelled.filter(post => post.getAttribute('data-bfx-hidden-by') !== 'sponsored');
+  ok('an ad labelled in any of those languages still goes', !missed.length,
+    'missed: ' + missed.map(post => post.querySelector(':scope > span[dir="auto"]').textContent).join(', '));
+  relabelled.forEach(post => post.parentElement.remove());
 
   /* React rewrites className when it re-renders; that used to un-hide ads. */
   $$('u-ad').className = 'x1n2onr6 x1ja2u2z';

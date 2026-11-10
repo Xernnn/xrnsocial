@@ -457,8 +457,13 @@
     '[aria-label^="Sponsored"]'
   ].join(',');
 
-  /* Where a label could be hiding. */
-  var LABEL_NODES = 'span[dir="auto"], h3, h4, a[role="link"]';
+  /* Where a label could be hiding. Never in a post's title, the <h4>: that
+   * names the author, and a group called "Реклама" is not an ad. */
+  var LABEL_NODES = 'span[dir="auto"], h3, a[role="link"]';
+
+  function inTitle(el) {
+    return !!el.closest('h4');
+  }
 
   /* Facebook's current label is not text in the post at all. Where an
    * ordinary post's header links to "2 hours ago", an ad's header link holds
@@ -510,7 +515,9 @@
       var label = adLabelIn(unit, api);
       if (label === 'ad') return true;
       var labels = unit.querySelectorAll(LABEL_NODES);
-      for (var i = 0; i < labels.length && i < 12; i++) {
+      for (var i = 0, seen = 0; i < labels.length && seen < 12; i++) {
+        if (inTitle(labels[i])) continue;
+        seen++;
         if (api.looksSponsored(labels[i])) return true;
       }
       if (label === 'unknown') ctx.unsure();
@@ -599,7 +606,7 @@
           isAd = api.AD_LABEL.test(text);
         } else {
           if (!(el.textContent || '').trim()) continue;
-          isAd = el.tagName !== 'A' || el.matches(LABEL_NODES) ? api.looksSponsored(el) : false;
+          isAd = (el.tagName !== 'A' || el.matches(LABEL_NODES)) && !inTitle(el) ? api.looksSponsored(el) : false;
         }
         el.__bfxAdGen = generation;
         el.__bfxIsAd = isAd;

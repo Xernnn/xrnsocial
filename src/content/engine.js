@@ -1,9 +1,11 @@
 /* The rule engine, shared by every site.
  *
  * Two mechanisms, deliberately:
- *   1. A single injected <style> sheet for everything expressible in CSS.
- *      Zero per-frame cost, survives a site's re-renders for free, and it is
- *      applied at document_start so hidden things never flash into view.
+ *   1. An injected <style> sheet for everything expressible in CSS. Zero
+ *      per-frame cost, survives a site's re-renders for free, and applied at
+ *      document_start so hidden things never flash into view. Picked rules,
+ *      which say whom someone hides, are kept out of the page: the background
+ *      page injects them, one sheet each (see "picked rules" below).
  *   2. A debounced MutationObserver for the handful of things CSS cannot see:
  *      "is this post an ad?", "does this post contain a word I banned?".
  *
@@ -107,15 +109,6 @@
       if (rule.style) out.push(rule.style);
     });
 
-    var path = location.pathname;
-    s.custom.forEach(function (rule) {
-      if (rule.enabled === false) return;
-      if (rule.scope === 'path' && rule.path !== path) return;
-      /* Stored selectors can come from an imported file; one that does not
-       * parse could close its rule and smuggle in CSS of its own. */
-      if (STORE.validSelector(rule.selector)) selectors.push(rule.selector);
-    });
-
     /* One selector per line: an invalid selector kills only its own rule,
      * not the whole sheet. Sites change; rules will break individually. */
     selectors.forEach(function (sel) {
@@ -123,6 +116,69 @@
     });
 
     return out.join('\n');
+  }
+
+  /* ------------------------------------------------------ picked rules -- */
+
+  /* Picked rules come from the person or from a backup file. Sharing a sheet,
+   * a selector the browser reads differently from STORE.validSelector would
+   * take every rule after it down with it, so each one gets a stylesheet of
+   * its own, where it can only ever break itself.
+   *
+   * They also say whom and what the person hides, and a site's scripts can
+   * read anything in its DOM, <style> included. So these sheets never go in
+   * the page: the background page injects them (chrome.scripting.insertCSS),
+   * where the page can neither read nor remove them, as user styles, whose
+   * !important no rule of the site's outranks. The price is a round trip:
+   * they land a moment after the page's own sheet. */
+  var injected = [];       // the css of each picked rule the background applied
+  var wanted = [];         // what the last apply() asked for
+  var sending = false;     // a change is on its way there
+
+  function pickedCss(s) {
+    var out = [];
+    if (!s.enabled) return out;
+    var path = location.pathname;
+    s.custom.forEach(function (rule) {
+      if (rule.enabled === false) return;
+      if (rule.scope === 'path' && rule.path !== path) return;
+      /* Stored selectors can come from an imported file, or predate today's
+       * check; one that does not parse, or leaves a comment or a string
+       * open, could close its rule and smuggle in CSS of its own. */
+      if (!STORE.validSelector(rule.selector)) return;
+      var css = boosted(rule.selector) + '{display:none !important}';
+      if (out.indexOf(css) === -1) out.push(css);
+    });
+    return out;
+  }
+
+  function applyPicked(list) {
+    wanted = list;
+    if (!sending) sendPicked();
+  }
+
+  /* One change at a time, each the difference between what is applied and
+   * what is wanted by then. One that fails is tried again with the next
+   * change of settings or page. */
+  function sendPicked() {
+    var add = wanted.filter(function (css) { return injected.indexOf(css) === -1; });
+    var remove = injected.filter(function (css) { return wanted.indexOf(css) === -1; });
+    if (!add.length && !remove.length) return;
+    sending = true;
+    var done = function (ok) {
+      sending = false;
+      if (!ok) return;
+      injected = injected.filter(function (css) { return remove.indexOf(css) === -1; }).concat(add);
+      sendPicked();
+    };
+    try {
+      chrome.runtime.sendMessage({ type: 'bfx:css', add: add, remove: remove }, function (res) {
+        void chrome.runtime.lastError;   // the background page was not reached
+        done(!!(res && res.ok));
+      });
+    } catch (e) {
+      done(false);                       // the extension was reloaded under this page
+    }
   }
 
   /* ------------------------------------------------------ shadow roots -- */
@@ -403,25 +459,34 @@
 
   /* ----------------------------------------------------------- ad labels -- */
 
-  /* Labels sites print on ads, as a prefix of the label's visible text. */
-  var AD_WORD = /^(sponsored|sponsrad|gesponsert|gesponsord|patrocinad|publicidad|sponsoris|sponsorizzat|sponsorowane|sponsorlu|bersponsor|được tài trợ|publicidade|реклама|广告|廣告|広告|إعلان)/i;
-  var PARTNER_WORD = /^paid (partnership|promotion)/i;
+  /* Words sites print as an ad's label, matched against the label's whole
+   * visible text: a Page called "Publicidad Creativa MX" or a group called
+   * "Реклама и объявления Москва" starts with one and is no ad. The forms a
+   * word takes to agree with what it labels are spelled out. */
+  var AD_WORD = /^(sponsored|sponsrad|gesponsert|gesponsord|patrocinad[oa]|publicidad|publicidade|sponsoris[ée]e?|sponsorizzat[oa]|sponsorowane|sponsorlu|bersponsor|được tài trợ|реклама|广告|廣告|広告|إعلان)$/i;
+  /* Branded content: "Paid partnership", alone or with its brand. */
+  var PARTNER_WORD = /^paid (partnership|promotion)( with .+)?$/i;
 
-  /* The whole label, for labels too short to match as a prefix. */
+  /* Short labels, matched whole as well. */
   var AD_LABEL = /^(ad|sponsored|quảng cáo|được tài trợ|publicidad|anuncio|patrocinado|anúncio|publicité|sponsorisé|anzeige|gesponsert|annuncio|sponsorizzato|iklan|bersponsor|реклама|广告|廣告|広告|إعلان)$/i;
 
   /* Facebook breaks the word "Sponsored" into shuffled spans and pads it with
    * decoy letters that CSS hides, so the raw text reads like "SpSonsoreedd".
    * This prefilter is loose on purpose; visibleText() then makes the call. */
   var FUZZY = /s.{0,3}p.{0,3}o.{0,3}n.{0,3}s.{0,3}o.{0,3}r/i;
+  /* Just as loose: raw text that starts like one of the words above. */
+  var AD_START = /^(sponsored|sponsrad|gesponsert|gesponsord|patrocinad|publicidad|sponsoris|sponsorizzat|sponsorowane|sponsorlu|bersponsor|được tài trợ|реклама|广告|廣告|広告|إعلان|paid (partnership|promotion))/i;
+
+  /* A dot or bullet the label shares its element with is not part of it. */
+  var EDGE_DOTS = /^[\s·•]+|[\s·•]+$/g;
 
   var INVISIBLE_CHARS = /[​-‍⁠﻿]/g;
 
   function looksSponsored(el) {
     var raw = (el.textContent || '').replace(INVISIBLE_CHARS, '').trim();
     if (!raw || raw.length > 40) return false;
-    if (!FUZZY.test(raw) && !AD_WORD.test(raw) && !AD_LABEL.test(raw) && !PARTNER_WORD.test(raw)) return false;
-    var shown = visibleText(el, 40).replace(INVISIBLE_CHARS, '').replace(/\s+/g, ' ');
+    if (!FUZZY.test(raw) && !AD_START.test(raw) && !AD_LABEL.test(raw)) return false;
+    var shown = visibleText(el, 40).replace(INVISIBLE_CHARS, '').replace(/\s+/g, ' ').replace(EDGE_DOTS, '');
     return AD_WORD.test(shown) || AD_LABEL.test(shown) || PARTNER_WORD.test(shown);
   }
 
@@ -536,7 +601,7 @@
     });
   }
 
-  /* The term that matched, for the placeholder, or null. */
+  /* The term that matched, or null. */
   function matchKeyword(unit, ctx) {
     var raw = ctx.text();
     var text = raw.toLowerCase();
@@ -687,9 +752,10 @@
           } catch (e) { /* one bad rule must not stop the others */ }
         }
         if (!hidden && keywords.length) {
-          var term = matchKeyword(unit, ctx);
-          if (term) {
-            hide(unit, 'keyword', 'word: ' + term);
+          /* The "show" bar is in the page, where the site's scripts can
+           * read it, so it never says which word. */
+          if (matchKeyword(unit, ctx)) {
+            hide(unit, 'keyword', 'a word you blocked');
             hidden = true;
           }
         }
@@ -712,7 +778,8 @@
   }
 
   /* If the page ever drops the stylesheet (a head rebuild on navigation),
-   * every CSS rule would stop at once; put it back. */
+   * every CSS rule would stop at once; put it back. (Picked rules are out of
+   * its reach.) */
   var css = '';
   function ensureStyle() {
     if (!document.getElementById(STYLE_ID)) styleEl().textContent = css;
@@ -856,6 +923,7 @@
 
     css = buildCss(state);
     styleEl().textContent = css;
+    applyPicked(pickedCss(state));
     shadowCss = collectShadow(state);
     styleShadowRoots();
     watchShadowVideos();

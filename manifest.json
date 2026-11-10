@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "xrnsocial",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Switch off the distracting parts of Facebook, Reddit, X, LinkedIn, Instagram, TikTok, Twitch, pixiv and MangaDex: ads, suggestions, reels, sidebars — or point and click to hide anything else.",
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "scripting"
   ],
   "host_permissions": [
     "*://*.facebook.com/*",
