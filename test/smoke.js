@@ -1088,6 +1088,10 @@ console.log('\nlinkedin.com as of October 2026 (test/fixtures/linkedin.html)');
   ok('nor is a member whose headline is "Reklam"', shown('item-headline-ad'), 'hidden by ' + by('item-headline-ad'));
   ok('a promoted card in the right column goes as its block', by('right-promo') === 'promoted' && shown('right-news'));
   ok('Premium in the left column goes as its block, the profile card stays', by('left-premium') === 'premiumUpsell' && shown('left-profile') && shown('left-stats'));
+  const premiumCss = w.BFX_SITES.get('linkedin').presets.find(r => r.id === 'premiumUpsell').css;
+  const premiumHides = id => premiumCss.some(sel => $$(id).matches(sel));
+  ok('the Premium offer in the feed goes, a post linking to another site\'s /premium/ page stays',
+    premiumHides('item-premium') && !premiumHides('item-premium-link'));
   ok('the unread badges go, and the tab title count', by('badge-msg') === 'badges' && by('badge-notif') === 'badges' && w.document.title === 'Feed | LinkedIn');
   ok('ordinary, suggested and activity posts stay by default', ['item-plain', 'item-suggested', 'item-activity', 'item-video', 'item-kw'].every(shown));
 

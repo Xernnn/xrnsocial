@@ -44,6 +44,11 @@
   /* A post's sections: everything after its screen-reader heading. */
   var SECTION = ITEM + ' h2 ~ div';
 
+  /* A link to LinkedIn's own Premium pages, relative as LinkedIn writes
+   * them or in full. A post may link anywhere, and another site's
+   * /premium/ page is not an offer. */
+  var PREMIUM_LINK = 'a:is([href^="/premium/"], [href^="https://www.linkedin.com/premium/"], [href^="https://linkedin.com/premium/"])';
+
   var LEFT_RAIL = 'aside:has(a[href*="/me/profile-views"], a[href*="/my-items/"], a[href*="/mynetwork/network-manager"])';
   var RIGHT_RAIL = 'aside:has([componentkey="feedRightNavGamesComponentRef"], a[href*="/news/story/"], a[href*="/ad/start"])';
 
@@ -64,7 +69,7 @@
       on: true,
       label: 'Premium offers',
       desc: 'Premium offers in the feed, the left column and the top bar.',
-      css: [ITEM + ':has(a[href*="/premium/"])', 'header a[href*="/premium/"]']
+      css: [ITEM + ':has(' + PREMIUM_LINK + ')', 'header a[href*="/premium/"]']
     },
 
     /* ---------------------------------------------------------- feed ---- */
