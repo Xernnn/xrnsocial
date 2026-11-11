@@ -687,6 +687,10 @@ console.log('\nfacebook.com as of October 2026 (test/fixtures/feed.html)');
   ok('posts from a Page or group whose name starts with an ad word stay', named.every(shown),
     named.filter(id => !shown(id)).map(id => id + ' hidden by ' + by(id)).join(', '));
   ok('so does one from a group named the word itself: its title is no label', shown('u-page-word'), 'hidden by ' + by('u-page-word'));
+  /* The picture link beside a post's title is labelled with the author's
+   * name, so an aria-label is an ad's only when "Sponsored" is all of it. */
+  ok('nor is a Page taken for an ad by the name on its picture link', shown('u-page-en'), 'hidden by ' + by('u-page-en'));
+  ok('an ad labelled "Sponsored" by aria-label alone still goes', by('u-ad-aria') === 'sponsored', 'got ' + by('u-ad-aria'));
   const cards = ['g-ru', 'g-en', 'g-pt', 'g-ok'];
   ok('and their cards in a list of groups', cards.every(shown),
     cards.filter(id => !shown(id)).map(id => id + ' hidden by ' + by(id)).join(', '));

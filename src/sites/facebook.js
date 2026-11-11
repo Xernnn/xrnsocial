@@ -449,12 +449,14 @@
    * story template is shared — so any of them would hide the whole feed.
    * (They are fine as structure, e.g. to find the Like button.) */
 
-  /* The label links to the ad-preferences explainer; ordinary posts do not. */
+  /* The label links to the ad-preferences explainer; ordinary posts do not.
+   * An aria-label counts only when "Sponsored" is all of it: the picture
+   * link beside every post's title is labelled with the author's name, and
+   * a Page called "Sponsored Kids Football League" is no ad. */
   var AD_LINKS = [
     'a[href*="/ads/about"]',
     'a[href*="ad_preferences"]',
-    'a[aria-label="Sponsored"]',
-    '[aria-label^="Sponsored"]'
+    '[aria-label="Sponsored"]'
   ].join(',');
 
   /* Where a label could be hiding. Never in a post's title, the <h4>: that

@@ -174,6 +174,7 @@ async function until(fn, timeout = 3000) {
     ok('Stories (off by default) are visible', !(await isHidden('stories')));
 
     ok('a link that merely starts with a word joiner is not an ad', !(await isHidden('u-pasted')));
+    ok('a Page whose name starts with "Sponsored" keeps its posts', !(await isHidden('u-page-en')) && await isHidden('u-ad-aria'));
     ok('Marketplace ad tiles go, one card each', await until(() => isHidden('mp-ad')) && await isHidden('mp-ad2') &&
       !(await isHidden('mp-1')) && !(await isHidden('mp-2')) && !(await isHidden('mp-grid')));
     await page.evaluate(() => { document.getElementById('u-ad').className = 'x1n2onr6 x1ja2u2z'; });
