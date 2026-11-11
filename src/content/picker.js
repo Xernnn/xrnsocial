@@ -107,9 +107,16 @@
     } else if (isCustom(tag) && !key && !/^bfx-/.test(tag) && !(hints.generic && hints.generic.test(tag))) {
       semantic(tag);
     }
+    /* A link's path, and the pages under it, as authorOf does: /sam is not
+     * the start of /samsung, so the path ends there or at / ? #. */
     if (tag === 'a' && attr('href') && attr('href').charAt(0) === '/') {
-      var path = attr('href').split('?')[0];
-      if (path.length > 1 && path.length < 40) out.push('a[href^=' + cssString(path) + ']');
+      var path = attr('href').split(/[?#]/)[0];
+      if (path.length > 1 && path.length < 40) {
+        out.push(path.slice(-1) === '/' ? 'a[href^=' + cssString(path) + ']'
+          : 'a:is(' + ['=', '/', '?', '#'].map(function (end) {
+            return end === '=' ? '[href=' + cssString(path) + ']' : '[href^=' + cssString(path + end) + ']';
+          }).join(', ') + ')');
+      }
     }
     if (el.id && !GENERATED_ID.test(el.id)) out.push('#' + escapeIdent(el.id));
     stableClasses(el).slice(0, 2).forEach(function (c) {

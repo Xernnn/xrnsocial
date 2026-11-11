@@ -645,6 +645,20 @@ check('notifications button', window.document.querySelector('[aria-label="Notifi
 check('badge span (no attributes of its own)', window.document.querySelector('[aria-label="Notifications"] span'));
 check('sidebar advert', $('side-ad'));
 
+/* A link keyed by its path took every path that starts the same: /sam
+ * hid /samsung. */
+{
+  const links = window.document.createElement('nav');
+  links.innerHTML = '<a href="/sam">Sam</a><a href="/sam/photos">Photos</a><a href="/sam?ref=feed">Again</a>' +
+    '<a href="/sam#top">Top</a><a href="/samsung">Samsung</a><a href="/sam.page">Other</a>';
+  window.document.body.appendChild(links);
+  const sam = BFX_PICKER.selectorFor(links.firstChild).broad;
+  const hit = Array.from(window.document.querySelectorAll(sam)).map(a => a.getAttribute('href'));
+  ok('a link\'s path means that page and the ones under it, not every path that starts the same → ' + sam,
+    hit.join() === '/sam,/sam/photos,/sam?ref=feed,/sam#top', hit.join());
+  links.remove();
+}
+
 const feedPost = $('u-ok');
 const built = BFX_PICKER.selectorFor(feedPost);
 ok('feed post gets a selector anchored on its pagelet', /FeedUnit/.test(built.selector), built.selector);
