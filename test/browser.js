@@ -903,9 +903,25 @@ async function until(fn, timeout = 3000) {
       return chrome.tabs.sendMessage(tab.id, { type: 'bfx:pick' });
     });
     const picked = () => sw.evaluate(async () => (await self.BFX_STORE.get()).sites.reddit.custom);
-    const spotOf = sel => page.evaluate(s => {
+    /* Where to touch something, once the page has stopped moving: a scan
+     * that runs late can still hide a post above it, and a spot measured
+     * before that lands on whatever moved up into its place. */
+    const spotOf = sel => page.evaluate(async s => {
       const el = document.querySelector(s);
+      const rect = () => { const r = el.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].join(); };
+      const frame = () => new Promise(r => { requestAnimationFrame(() => r()); setTimeout(r, 100); });
       el.scrollIntoView({ block: 'center' });
+      let last = rect();
+      let since = Date.now();
+      for (const end = Date.now() + 5000; Date.now() < end && Date.now() - since < 300;) {
+        await frame();
+        const now = rect();
+        if (now !== last) {
+          el.scrollIntoView({ block: 'center' });
+          last = rect();
+          since = Date.now();
+        }
+      }
       const r = el.getBoundingClientRect();
       return { x: r.left + Math.min(r.width / 2, 40), y: r.top + r.height / 2 };
     }, sel);
