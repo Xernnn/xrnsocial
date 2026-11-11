@@ -785,11 +785,22 @@
     if (!document.getElementById(STYLE_ID)) styleEl().textContent = css;
   }
 
+  /* A tab in the background gets no animation frames, and that is where the
+   * count in its title is read: there a timer does the scan instead. */
+  var HIDDEN_MS = 250;
+
   function schedule() {
     if (pending) return;
     pending = true;
-    requestAnimationFrame(scan);
+    if (document.hidden) setTimeout(scan, HIDDEN_MS);
+    else requestAnimationFrame(scan);
   }
+
+  /* Nor does the frame a scan was waiting for when the tab went behind. It
+   * comes when the tab is shown again; one scan too many does no harm. */
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden && pending) setTimeout(scan, HIDDEN_MS);
+  });
 
   function startObserver() {
     if (observer) return;

@@ -195,6 +195,25 @@ async function until(fn, timeout = 3000) {
     });
     ok('an empty shell is judged once it is filled', await until(() => isHidden('u-shell')));
 
+    /* A tab in the background gets no animation frames, and that is where a
+     * count in its title is read. The page keeps changing as the tab goes
+     * behind, as a feed does, so a scan is already asked for at that moment. */
+    await page.evaluate(() => {
+      self.__busy = setInterval(() => document.body.appendChild(document.createElement('i')).remove(), 1);
+    });
+    const front = await browser.newPage();
+    await front.bringToFront();
+    await until(() => page.evaluate(() => document.hidden));
+    await sleep(100);
+    await page.evaluate(() => { document.title = '(5) Facebook'; });
+    ok('a count that reaches the title while the tab is in the background is stripped there',
+      await until(() => page.evaluate(() => document.hidden && document.title === 'Facebook'), 5000),
+      await page.evaluate(() => document.visibilityState + ', ' + document.title));
+    await page.evaluate(() => clearInterval(self.__busy));
+    await page.bringToFront();
+    await front.close();
+    await until(() => page.evaluate(() => !document.hidden));
+
     /* --------------------------------------------------------- live update -- */
     console.log('\nsettings changes reach open tabs');
     await setState('s => { s.sites.facebook.presets.stories = true; }');
