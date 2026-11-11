@@ -34,8 +34,14 @@
   /* The box drawn beside "Promoted by". */
   var PROMOTED_ICON = 'M19.498 3h-15c-1.381';
 
-  /* Pages that list accounts on purpose, where user cells are the content. */
-  var ACCOUNT_LISTS = /^\/(search|explore|notifications|i\/|settings)|\/(followers|following|verified_followers|followers_you_follow|members|subscribers|creator-subscriptions|lists)(\/|$)/;
+  /* Pages that list accounts on purpose, where user cells are the content:
+   * besides the follower lists, who reposted, liked or quoted a post, an
+   * organisation's affiliates, and any People tab (?f=user, on a hashtag
+   * as on a search). */
+  var ACCOUNT_LISTS = /^\/(search|explore|notifications|i\/|settings)|\/(followers|following|verified_followers|followers_you_follow|members|subscribers|creator-subscriptions|lists|affiliates)(\/|$)|\/status\/\d+\/(retweets|likes|quotes)(\/|$)/;
+  function onAccountList() {
+    return ACCOUNT_LISTS.test(location.pathname) || /[?&]f=user(&|$)/.test(location.search);
+  }
 
   var PRESETS = [
     /* ----------------------------------------------------------- ads ---- */
@@ -306,7 +312,7 @@
      * "Show more" link to /i/connect_people. Pages that list accounts on
      * purpose are left alone. */
     whoToFollow: function (unit, rule, ctx) {
-      if (ACCOUNT_LISTS.test(location.pathname)) return false;
+      if (onAccountList()) return false;
       if (unit.querySelector(POST)) return false;
       if (unit.querySelector('[data-testid="UserCell"], a[href^="/i/connect_people"]')) return true;
       if (!unit.querySelector('h2, [role="heading"]')) return false;

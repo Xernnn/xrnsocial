@@ -66,8 +66,11 @@
   var BOOST = ':not(#bfx-z)';
   var BOOST2 = BOOST + ':not(#bfx-y)';
 
-  /* A selector with a top-level comma is a list: boost the whole list. */
+  /* A selector with a top-level comma is a list: boost the whole list. One
+   * with a space at the end (a picked rule from an older import) would boost
+   * as "x :not(#bfx-z)", everything inside x; it is trimmed first. */
   function boosted(sel) {
+    sel = sel.trim();
     var depth = 0;
     var quote = '';
     for (var i = 0; i < sel.length; i++) {
@@ -386,7 +389,10 @@
   var GESTURE_MS = 1500;
   var lastGesture = 0;
 
+  /* Only the person's own: a page that makes up a pointerdown before it
+   * starts a video would get its autoplay past the switch. */
   function noteGesture(e) {
+    if (!e.isTrusted) return;
     if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
     lastGesture = Date.now();
   }
@@ -601,25 +607,35 @@
     });
   }
 
+  /* How much of a post a /regex/ term reads. A pattern's work can grow with
+   * a power of the text's length (.*a.*b over a post with its comments
+   * open), and the scan can't be stopped once it runs; a plain word reads
+   * all of it. */
+  var REGEX_TEXT_MAX = 1000;
+
   /* The term that matched, or null. */
   function matchKeyword(unit, ctx) {
     var raw = ctx.text();
     var text = raw.toLowerCase();
     if (!text) return null;
+    var head = raw.length > REGEX_TEXT_MAX ? raw.slice(0, REGEX_TEXT_MAX) : raw;
     for (var i = 0; i < keywords.length; i++) {
       var term = keywords[i];
-      if (term.re ? term.re.test(raw) : text.indexOf(term.text) !== -1) return term.source;
+      if (term.re ? term.re.test(head) : text.indexOf(term.text) !== -1) return term.source;
     }
     return null;
   }
 
-  /* Accepts plain words or /regex/flags. */
+  /* Accepts plain words or /regex/flags. A pattern that could freeze the
+   * tab (STORE.slowPattern) is a plain word, as one that isn't valid is:
+   * the popup and an import keep only its text, and one saved before they
+   * did lands here. */
   function compileKeywords(terms) {
     return (terms || []).map(function (raw) {
       var t = String(raw).trim();
       if (!t) return null;
       var m = /^\/(.+)\/([gimsuy]*)$/.exec(t);
-      if (m) {
+      if (m && !STORE.slowPattern(m[1])) {
         try {
           // No g or y: both make test() stateful between posts.
           return { re: new RegExp(m[1], m[2].replace(/[gy]/g, '')), source: t };

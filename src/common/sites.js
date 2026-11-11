@@ -8,9 +8,13 @@
   'use strict';
 
   /* Every site, in popup order. A hostname belongs to a site when it is one
-   * of its hosts or a subdomain of one. */
+   * of its hosts or a subdomain of one, or, for a site marked `exact`, when
+   * it is one of its hosts. Facebook's other subdomains are other apps (Ads
+   * Manager, Business Suite, the developer pages), whose cards say "Ad" and
+   * "Sponsored" as well. */
   var SITES = [
-    { id: 'facebook', name: 'Facebook', hosts: ['facebook.com', 'messenger.com'] },
+    { id: 'facebook', name: 'Facebook', exact: true,
+      hosts: ['facebook.com', 'www.facebook.com', 'web.facebook.com', 'm.facebook.com', 'messenger.com', 'www.messenger.com'] },
     { id: 'reddit', name: 'Reddit', hosts: ['reddit.com'] },
     { id: 'x', name: 'X', hosts: ['x.com', 'twitter.com'] },
     { id: 'linkedin', name: 'LinkedIn', hosts: ['linkedin.com'] },
@@ -35,7 +39,7 @@
     for (var i = 0; i < SITES.length; i++) {
       for (var j = 0; j < SITES[i].hosts.length; j++) {
         var h = SITES[i].hosts[j];
-        if (host === h || host.slice(-h.length - 1) === '.' + h) return SITES[i].id;
+        if (host === h || (!SITES[i].exact && host.slice(-h.length - 1) === '.' + h)) return SITES[i].id;
       }
     }
     return null;

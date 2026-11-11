@@ -231,6 +231,16 @@ ok('each selector is its own rule', css.split('\n').length > BFX_PRESETS.length)
 
 const frame = () => new Promise(r => setTimeout(r, 60));
 
+/* An event as the person's own input arrives: trusted. dispatchEvent() is
+ * what a page's script can do, and jsdom marks it untrusted, as browsers
+ * do; this goes through jsdom's own dispatch with the mark set. */
+const jsdomUtils = require('jsdom/lib/jsdom/living/generated/utils.js');
+function userEvent(target, event) {
+  const impl = jsdomUtils.implForWrapper(event);
+  impl.isTrusted = true;
+  return jsdomUtils.implForWrapper(target)._dispatch(impl);
+}
+
 (async function main() {
 /* -------------------------------------------------------- heuristics -- */
 console.log('\nheuristics');
@@ -472,6 +482,46 @@ console.log('\nwhat the page can read');
   ok('and so does pausing', backgrounds.get(w).sheets.length === 0, JSON.stringify(backgrounds.get(w).sheets));
 }
 
+/* A /regex/ word runs against every post inside the scan, which can't be
+ * interrupted: one like /(a+)+$/ froze the tab on a post with a long run of
+ * one letter, and /.*a.*zq/ took a second over a long post. */
+console.log('\na /regex/ word that could freeze the tab');
+{
+  const S = BFX_STORE;
+  const body = t => t.replace(/^\/|\/[a-z]*$/g, '');
+  const slow = ['/(a+)+$/', '/(a|aa)*b/', '/(\\w|\\d)+$/', '/(\\w+\\s?)*$/', '/(.*a){12}/', '/.*.*.*zq/', '/\\d+\\d*x/', '/.*o.*e.*zq/'];
+  const missed = slow.filter(t => !S.slowPattern(body(t)));
+  ok('nested repeats, repeated choices, and repeats that crowd each other are seen for what they are', !missed.length, missed.join(' '));
+  const fine = ['/give\\s?away/i', '/\\bcrypto\\b/i', '/crypto.*scam/', '/(?:crypto|nft)s?/i', '/\\d{3}-\\d{4}/', '/free\\s+money/', '/a+b+/', '/[^\\]]+x/'];
+  const refused = fine.filter(t => S.slowPattern(body(t)));
+  ok('ordinary patterns are not', !refused.length, refused.join(' '));
+  ok('one of them is kept as the plain word between its slashes, the rest as typed',
+    S.cleanTerm(' /(a+)+$/i ') === '(a+)+$' && S.cleanTerm('/give\\s?away/i') === '/give\\s?away/i' && S.cleanTerm(' crypto ') === 'crypto');
+  const imported = S.fromBackup({ keywords: { enabled: true, terms: ['/(a+)+$/', '/lake\\b/i'] } });
+  ok('…and so is one in an imported backup', JSON.stringify(imported.keywords.terms) === JSON.stringify(['(a+)+$', '/lake\\b/i']), JSON.stringify(imported.keywords.terms));
+
+  const w = boot(fs.readFileSync(path.join(__dirname, 'fixtures/feed.html'), 'utf8'));
+  const $$ = id => w.document.getElementById(id);
+  const timed = async terms => {
+    const t0 = Date.now();
+    w.BFX_ENGINE.apply(w.BFX_STORE.merge({ keywords: { enabled: true, terms: terms } }));
+    await frame();
+    return Date.now() - t0;
+  };
+  $$('u-organic').append(' ' + 'a'.repeat(28) + '!');
+  const took = await timed(['/(a+)+$/']);
+  ok(`one saved before is read as a plain word: the scan over a post it would hang on takes ${took} ms`,
+    took < 500 && !$$('u-organic').hasAttribute('data-bfx-hidden-by'));
+  const story = 'the quick brown fox jumps over a lazy dog and then some more words appear in this post. ';
+  $$('u-video').append(story.repeat(70) + 'zebra');
+  const long = await timed(['/.*a.*zq/']);
+  ok(`a pattern reads only the start of a long post: ${long} ms over ${$$('u-video').textContent.length} characters`, long < 300);
+  await timed(['zebra']);
+  ok('…while a plain word still reads all of it', $$('u-video').getAttribute('data-bfx-hidden-by') === 'keyword');
+  await timed(['/zebra/']);
+  ok('…and the pattern doesn\'t, past its first thousand characters', !$$('u-video').hasAttribute('data-bfx-hidden-by'));
+}
+
 /* The background page's side of it: each sheet goes in as a user style, the
  * kind a page cannot outrank or read, into the document that asked for it. */
 console.log('\nthe background page');
@@ -578,6 +628,14 @@ const cleanedFb = cleaned.sites.facebook;
 ok('non-boolean switches are ignored', cleanedFb.presets.stories === undefined && cleanedFb.presets.feed === true);
 ok('picked rules with invalid selectors are dropped', cleanedFb.custom.length === 1 && cleanedFb.custom[0].scope === 'all');
 ok('words are cleaned', JSON.stringify(cleaned.keywords) === JSON.stringify({ enabled: false, terms: ['ok'] }));
+/* A space at the end of a picked selector made its rule "x :not(#bfx-z)":
+ * everything inside x, not x. */
+const spaced = BFX_STORE.fromBackup({ sites: { facebook: { custom: [{ selector: ' [aria-label="Marketplace"]\n' }] } } });
+ok('a picked rule\'s selector is trimmed on import', spaced.sites.facebook.custom[0].selector === '[aria-label="Marketplace"]',
+  JSON.stringify(spaced.sites.facebook.custom[0].selector));
+BFX_ENGINE.apply(BFX_STORE.merge({ sites: { facebook: { custom: [{ id: 'sp', selector: '[aria-label="Marketplace"] ', enabled: true, scope: 'all' }] } } }));
+ok('…and one stored with the space still hides the thing itself, not what is inside it',
+  backgrounds.get(window).sheets.join('\n') === '[aria-label="Marketplace"]:not(#bfx-z){display:none !important}', backgrounds.get(window).sheets.join('\n'));
 
 /* ------------------------------------------------------------ picker -- */
 console.log('\npicker selector generation');
@@ -594,6 +652,20 @@ check('marketplace link', window.document.querySelector('a[aria-label="Marketpla
 check('notifications button', window.document.querySelector('[aria-label="Notifications"]'), /aria-label/);
 check('badge span (no attributes of its own)', window.document.querySelector('[aria-label="Notifications"] span'));
 check('sidebar advert', $('side-ad'));
+
+/* A link keyed by its path took every path that starts the same: /sam
+ * hid /samsung. */
+{
+  const links = window.document.createElement('nav');
+  links.innerHTML = '<a href="/sam">Sam</a><a href="/sam/photos">Photos</a><a href="/sam?ref=feed">Again</a>' +
+    '<a href="/sam#top">Top</a><a href="/samsung">Samsung</a><a href="/sam.page">Other</a>';
+  window.document.body.appendChild(links);
+  const sam = BFX_PICKER.selectorFor(links.firstChild).broad;
+  const hit = Array.from(window.document.querySelectorAll(sam)).map(a => a.getAttribute('href'));
+  ok('a link\'s path means that page and the ones under it, not every path that starts the same → ' + sam,
+    hit.join() === '/sam,/sam/photos,/sam?ref=feed,/sam#top', hit.join());
+  links.remove();
+}
 
 const feedPost = $('u-ok');
 const built = BFX_PICKER.selectorFor(feedPost);
@@ -621,6 +693,13 @@ ok('hostnames map to their site', BFX_SITES.forHost('www.facebook.com') === 'fac
   BFX_SITES.forHost('mobile.twitter.com') === 'x' && BFX_SITES.forHost('www.twitch.tv') === 'twitch');
 ok('lookalike hosts do not', BFX_SITES.forHost('notfacebook.com') === null && BFX_SITES.forHost('example.com') === null &&
   BFX_SITES.forUrl('chrome://extensions/') === null);
+/* Facebook's other subdomains are other apps (Ads Manager, Business Suite,
+ * the developer pages), whose cards say "Ad" and "Sponsored" too. */
+const fbHosts = ['facebook.com', 'www.facebook.com', 'web.facebook.com', 'm.facebook.com', 'messenger.com', 'www.messenger.com'];
+const notFb = ['adsmanager.facebook.com', 'business.facebook.com', 'developers.facebook.com', 'l.facebook.com'];
+ok('the Facebook rules run on Facebook and Messenger, and on none of Facebook\'s other apps',
+  fbHosts.every(h => BFX_SITES.forHost(h) === 'facebook') && notFb.every(h => BFX_SITES.forHost(h) === null),
+  fbHosts.concat(notFb).map(h => h + '=' + BFX_SITES.forHost(h)).join(' '));
 const old = BFX_STORE.merge({ enabled: true, presets: { stories: true, sponsored: false }, custom: [{ id: 'o1', selector: '#x', scope: 'all' }] });
 ok('settings from before other sites move to Facebook',
   old.sites.facebook.presets.stories === true && old.sites.facebook.presets.sponsored === false &&
@@ -759,8 +838,12 @@ console.log('\nfacebook.com as of October 2026 (test/fixtures/feed.html)');
   autoplay();
   ok('a video that starts by itself is paused', pauses === 1, pauses + ' pauses');
   video.dispatchEvent(new w.MouseEvent('pointerdown', { bubbles: true }));
+  video.dispatchEvent(new w.KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }));
   autoplay();
-  ok('one started by a click plays on', pauses === 1, pauses + ' pauses');
+  ok('a press the page made up first is no click: still paused', pauses === 2, pauses + ' pauses');
+  userEvent(video, new w.MouseEvent('pointerdown', { bubbles: true }));
+  autoplay();
+  ok('one started by a click plays on', pauses === 2, pauses + ' pauses');
   w.BFX_ENGINE.apply(S.merge({ presets: { noAutoplay: false } }));
   pauses = 0;
   await new Promise(r => setTimeout(r, 1600));
@@ -869,7 +952,7 @@ console.log('\nreddit.com as of October 2026 (test/fixtures/reddit.html)');
   await frame();
   shadowVideo.dispatchEvent(new w.Event('play'));
   ok('a video inside the player\'s shadow root that starts by itself is paused', paused === 1, paused + ' pauses');
-  shadowVideo.dispatchEvent(new w.MouseEvent('pointerdown', { bubbles: true, composed: true }));
+  userEvent(shadowVideo, new w.MouseEvent('pointerdown', { bubbles: true, composed: true }));
   shadowVideo.dispatchEvent(new w.Event('play'));
   ok('…and one started by a click plays on', paused === 1, paused + ' pauses');
   w.BFX_ENGINE.apply(reddit({ noAutoplay: false }));
@@ -959,6 +1042,21 @@ console.log('\nx.com as of October 2026 (test/fixtures/x.html)');
   lists.BFX_ENGINE.apply(lists.BFX_STORE.merge(null));
   await frame();
   ok('user cells on a following list are the content, not suggestions', !lists.document.getElementById('cell-wtf-user').hasAttribute('data-bfx-hidden-by'));
+  /* Other pages that are lists of accounts showed empty. */
+  const cellOn = async url => {
+    const page = boot(html, url);
+    page.BFX_ENGINE.apply(page.BFX_STORE.merge(null));
+    await frame();
+    return page.document.getElementById('cell-wtf-user').getAttribute('data-bfx-hidden-by');
+  };
+  const listUrls = ['/alice/status/111/retweets', '/alice/status/111/likes', '/alice/status/111/quotes',
+    '/hashtag/cats?f=user', '/search?q=cats&f=user', '/acme/affiliates'];
+  const emptied = [];
+  for (const u of listUrls) if (await cellOn('https://x.com' + u)) emptied.push(u);
+  ok('…nor on who reposted, liked or quoted a post, a hashtag\'s or a search\'s People tab, or an organisation\'s affiliates',
+    !emptied.length, emptied.join(' '));
+  ok('…while a hashtag\'s posts and a profile\'s likes still lose the suggestions',
+    await cellOn('https://x.com/hashtag/cats') === 'whoToFollow' && await cellOn('https://x.com/alice/likes') === 'whoToFollow');
 }
 
 /* ----------------------------------------------- linkedin.com, October 2026 -- */
@@ -992,8 +1090,15 @@ console.log('\nlinkedin.com as of October 2026 (test/fixtures/linkedin.html)');
     'got ' + late.getAttribute('data-bfx-hidden-by'));
   late.remove();
   ok('the label is matched in other languages too', by('item-ad-de') === 'promoted', 'got ' + by('item-ad-de'));
+  /* Every line of the header was read, the name and the headline too. */
+  ok('a page called "AD" is not an ad', shown('item-name-ad'), 'hidden by ' + by('item-name-ad'));
+  ok('nor is a member whose headline is "Reklam"', shown('item-headline-ad'), 'hidden by ' + by('item-headline-ad'));
   ok('a promoted card in the right column goes as its block', by('right-promo') === 'promoted' && shown('right-news'));
   ok('Premium in the left column goes as its block, the profile card stays', by('left-premium') === 'premiumUpsell' && shown('left-profile') && shown('left-stats'));
+  const premiumCss = w.BFX_SITES.get('linkedin').presets.find(r => r.id === 'premiumUpsell').css;
+  const premiumHides = id => premiumCss.some(sel => $$(id).matches(sel));
+  ok('the Premium offer in the feed goes, a post linking to another site\'s /premium/ page stays',
+    premiumHides('item-premium') && !premiumHides('item-premium-link'));
   ok('the unread badges go, and the tab title count', by('badge-msg') === 'badges' && by('badge-notif') === 'badges' && w.document.title === 'Feed | LinkedIn');
   ok('ordinary, suggested and activity posts stay by default', ['item-plain', 'item-suggested', 'item-activity', 'item-video', 'item-kw'].every(shown));
 

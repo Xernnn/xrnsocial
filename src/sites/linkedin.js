@@ -44,6 +44,11 @@
   /* A post's sections: everything after its screen-reader heading. */
   var SECTION = ITEM + ' h2 ~ div';
 
+  /* A link to LinkedIn's own Premium pages, relative as LinkedIn writes
+   * them or in full. A post may link anywhere, and another site's
+   * /premium/ page is not an offer. */
+  var PREMIUM_LINK = 'a:is([href^="/premium/"], [href^="https://www.linkedin.com/premium/"], [href^="https://linkedin.com/premium/"])';
+
   var LEFT_RAIL = 'aside:has(a[href*="/me/profile-views"], a[href*="/my-items/"], a[href*="/mynetwork/network-manager"])';
   var RIGHT_RAIL = 'aside:has([componentkey="feedRightNavGamesComponentRef"], a[href*="/news/story/"], a[href*="/ad/start"])';
 
@@ -64,7 +69,7 @@
       on: true,
       label: 'Premium offers',
       desc: 'Premium offers in the feed, the left column and the top bar.',
-      css: [ITEM + ':has(a[href*="/premium/"])', 'header a[href*="/premium/"]']
+      css: [ITEM + ':has(' + PREMIUM_LINK + ')', 'header a[href*="/premium/"]']
     },
 
     /* ---------------------------------------------------------- feed ---- */
@@ -225,10 +230,18 @@
   }
 
   var HEURISTICS = {
+    /* The header's lines are its paragraphs: the author's name, then mostly
+     * a headline or a follower count, then the time, and an ad prints its
+     * label where the time would be. So only that last line is read, and
+     * never the first, which is the name: reading every line hid all posts
+     * of a page called "AD", or of a member whose headline is "Reklam". */
     promoted: function (unit, rule, ctx, api) {
       var header = headerOf(unit);
       if (!header) return false;
-      var leaves = header.querySelectorAll('span, p');
+      var lines = Array.prototype.filter.call(header.querySelectorAll('p'), function (p) { return !p.closest('button'); });
+      if (lines.length < 2) return false;
+      var last = lines[lines.length - 1];
+      var leaves = [last].concat(Array.prototype.slice.call(last.querySelectorAll('span, p')));
       for (var i = 0; i < leaves.length; i++) {
         if (leaves[i].children.length) continue;
         var t = (leaves[i].textContent || '').trim();

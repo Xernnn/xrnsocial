@@ -23,7 +23,9 @@ Nothing leaves your browser: no network requests, no analytics, no accounts.
 - **Picker.** Press `Alt+Shift+H` (or use the popup) and click anything to
   hide it. On a phone, tap it, adjust with Smaller and Bigger, then tap Hide.
   Picking a whole post hides posts from that author, page or community.
-- **Word blocks.** Hide posts containing a word, or a `/regex/i`.
+- **Word blocks.** Hide posts containing a word, or a `/regex/i`. A pattern
+  reads the first 1,000 characters of a post, and one that could freeze the
+  page (a repeat inside a repeat, such as `(a+)+`) is kept as a plain word.
 - **"Show" bars.** If you like, a hidden post can leave a one-line bar that
   you click to bring the post back. A bar says why a post went, but never
   which blocked word: the site can read it.

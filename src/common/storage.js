@@ -190,6 +190,101 @@
     }
   }
 
+  /* A /regex/ body that a backtracking engine can take seconds or hours over
+   * on one post, with the tab frozen while it runs, since a scan can't be
+   * interrupted: a repeat around something that repeats or branches
+   * ((a+)+, (a|aa)*, (\w+\s?)*, (.*a){9}), an open-ended repeat straight
+   * after another that can match the same characters (.*.*, \d+\d*, with
+   * only optional bits between), or more than two open-ended repeats in all
+   * (.*a.*b.*c). Read token by token; a group's prefix ("?:", "?<name>")
+   * reads as plain characters, which changes nothing here. */
+  var CLASSES = { d: /\d/, w: /\w/, s: /\s/, D: /\D/, W: /\W/, S: /\S/ };
+  var APART = ['\\D\\d', '\\S\\s', '\\W\\w', '\\d\\s', '\\s\\w', '\\W\\d'];
+  /* Whether two atoms can match no character in common. An atom is 'L' and
+   * the character, '\\' and a class letter, or anything else (could be
+   * anything). */
+  function apart(a, b) {
+    if (a[0] === 'L' && b[0] === 'L') return a !== b;
+    if (a[0] === 'L' && b[0] === '\\') return !CLASSES[b[1]].test(a.slice(1));
+    if (b[0] === 'L' && a[0] === '\\') return !CLASSES[a[1]].test(b.slice(1));
+    return APART.indexOf([a, b].sort().join('')) !== -1;
+  }
+
+  function slowPattern(body) {
+    var REPEAT = /^\{(\d+)(,(\d*))?\}/;
+    var groups = [{ rep: false, alt: false, before: null }];
+    var atom = null;        // what a quantifier here would apply to
+    var before = null;      // the item before it, if that repeats open-endedly
+    var open = null;        // the same for this item, once its quantifier is read
+    var opens = 0;
+    for (var i = 0; i < body.length; i++) {
+      var c = body[i];
+      var top = groups[groups.length - 1];
+      var q = c === '{' ? REPEAT.exec(body.slice(i)) : null;
+      if (c === '*' || c === '+' || c === '?' || q) {
+        if (q) i += q[0].length - 1;
+        if (body[i + 1] === '?') i++;   // lazy: the same work
+        if (!atom) continue;
+        var max = c === '*' || c === '+' ? Infinity : c === '?' ? 1 : q[2] === undefined ? +q[1] : q[3] === '' ? Infinity : +q[3];
+        if (max > 1) {
+          if (atom.group && (atom.group.rep || atom.group.alt)) return true;
+          top.rep = true;
+        }
+        if (max === Infinity) {
+          if ((before && !apart(before, atom.kind)) || ++opens > 2) return true;
+          open = atom.kind;
+        } else if (max <= 1) {
+          open = before;   // optional: what came before still meets what follows
+        }
+        atom = null;
+        continue;
+      }
+      if (c === '(') {
+        groups.push({ rep: false, alt: false, before: open });
+        atom = null;
+        before = open = null;
+        continue;
+      }
+      if (c === '|') {
+        top.alt = true;
+        atom = null;
+        before = open = null;
+        continue;
+      }
+      if (c === ')' && groups.length > 1) {
+        var done = groups.pop();
+        var outer = groups[groups.length - 1];
+        outer.rep = outer.rep || done.rep;
+        outer.alt = outer.alt || done.alt;
+        atom = { group: done, kind: '(' };
+        before = done.before;
+        open = null;
+        continue;
+      }
+      var kind = c === '.' || c === '[' ? c : 'L' + c.toLowerCase();
+      if (c === '\\') {
+        var e = body[++i] || '';
+        var close = /[pPu]/.test(e) && body[i + 1] === '{' ? '}' : e === 'k' && body[i + 1] === '<' ? '>' : '';
+        if (close) i = Math.max(i, body.indexOf(close, i));
+        kind = CLASSES[e] ? '\\' + e : /[A-Za-z0-9]/.test(e) ? '?' : 'L' + e;
+      } else if (c === '[') {
+        for (i++; i < body.length && body[i] !== ']'; i++) if (body[i] === '\\') i++;
+      }
+      atom = { group: null, kind: kind };
+      before = open;
+      open = null;
+    }
+    return false;
+  }
+
+  /* A word as it is kept: a /regex/ that slowPattern() refuses becomes the
+   * plain word between its slashes. */
+  function cleanTerm(term) {
+    var t = String(term).trim();
+    var m = /^\/(.+)\/([gimsuy]*)$/.exec(t);
+    return m && slowPattern(m[1]) ? m[1] : t;
+  }
+
   function toBackup(state) {
     return {
       app: APP,
@@ -199,13 +294,15 @@
     };
   }
 
+  /* A selector is kept trimmed: one with a space at the end hid what was
+   * inside the element instead of the element (engine.js, boosted()). */
   function cleanRules(list) {
     return (Array.isArray(list) ? list : []).filter(function (r) {
       return r && validSelector(r.selector);
     }).map(function (r) {
       return {
         id: typeof r.id === 'string' && r.id ? r.id : newId(),
-        selector: r.selector,
+        selector: r.selector.trim(),
         label: typeof r.label === 'string' ? r.label : '',
         scope: r.scope === 'path' ? 'path' : 'all',
         path: typeof r.path === 'string' ? r.path : '/',
@@ -246,7 +343,7 @@
         enabled: s.keywords.enabled === true,
         terms: (Array.isArray(s.keywords.terms) ? s.keywords.terms : [])
           .filter(function (t) { return typeof t === 'string' && t.trim(); })
-          .map(function (t) { return t.trim(); })
+          .map(cleanTerm)
       };
     }
     var sites = s.sites && typeof s.sites === 'object' ? s.sites
@@ -278,6 +375,8 @@
     view: view,
     newId: newId,
     validSelector: validSelector,
+    slowPattern: slowPattern,
+    cleanTerm: cleanTerm,
     toBackup: toBackup,
     fromBackup: fromBackup
   };

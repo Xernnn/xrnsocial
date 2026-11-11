@@ -422,9 +422,22 @@ async function until(fn, timeout = 3000) {
     await popup.keyboard.press('Enter');
     await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.keywords.terms.length === 2)'));
     ok('after that the switch is left as it was set', await sw.evaluate('self.BFX_STORE.get().then(s => !s.keywords.enabled)'));
-    await popup.click('#words .chip-x');
-    await popup.click('#words .chip-x');
+    /* Found and clicked in one go: every change draws the list again a
+     * moment later, once the tab's counts are back, and a chip found first
+     * and clicked after could be one that was just replaced. */
+    const removeWord = () => popup.evaluate(() => document.querySelector('#words .chip-x').click());
+    await removeWord();
+    await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.keywords.terms.length === 1)'));
+    await removeWord();
     ok('a word can be removed', await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.keywords.terms.length === 0)')));
+    await popup.type('#wordInput', '/(a+)+$/');
+    await popup.keyboard.press('Enter');
+    ok('a pattern that could freeze the page goes in as a plain word, and the popup says so', await until(async () =>
+      (await sw.evaluate('self.BFX_STORE.get().then(s => JSON.stringify(s.keywords.terms))')) === '["(a+)+$"]' &&
+      /plain word: \(a\+\)\+\$/.test(await popup.$eval('#kwHint', n => n.textContent))));
+    await removeWord();
+    await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.keywords.terms.length === 0)'));
+    await setState(`s => { s.keywords.enabled = false; }`);
 
     await setState(`s => { s.sites.facebook.custom.push({ id: 'p1', selector: '#nothing', label: 'A picked thing', scope: 'all', path: '/groups/', enabled: true, createdAt: 1 }); }`);
     await popup.click('.tab[data-view="picked"]');
@@ -631,7 +644,10 @@ async function until(fn, timeout = 3000) {
     ok('promoted posts go: by label, in German, and by ad-tracking link',
       await until(() => liGone('item-ad')) && await liGone('item-ad-de') && await liGone('item-ad-link'));
     ok('Premium goes in the feed, the left column and the top bar', await liGone('item-premium') && await liGone('left-premium') && await liGone('nav-premium'));
+    ok('a post linking to another site\'s /premium/ page stays', !(await liGone('item-premium-link')));
     ok('ordinary posts and the rest of the left column stay', !(await liGone('item-plain')) && !(await liGone('left-profile')) && !(await liGone('item-suggested')));
+    ok('a page called "AD", and a member whose headline is "Reklam", keep their posts',
+      !(await liGone('item-name-ad')) && !(await liGone('item-headline-ad')));
     ok('the unread badges go', await liGone('badge-msg') && await liGone('badge-notif'));
 
     const liOnly = list => setState(`s => { const p = s.sites.linkedin.presets; ${JSON.stringify(liIds)}.forEach(k => { p[k] = false; }); ${list.map(id => `p.${id} = true;`).join(' ')} }`);
@@ -901,9 +917,25 @@ async function until(fn, timeout = 3000) {
       return chrome.tabs.sendMessage(tab.id, { type: 'bfx:pick' });
     });
     const picked = () => sw.evaluate(async () => (await self.BFX_STORE.get()).sites.reddit.custom);
-    const spotOf = sel => page.evaluate(s => {
+    /* Where to touch something, once the page has stopped moving: a scan
+     * that runs late can still hide a post above it, and a spot measured
+     * before that lands on whatever moved up into its place. */
+    const spotOf = sel => page.evaluate(async s => {
       const el = document.querySelector(s);
+      const rect = () => { const r = el.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].join(); };
+      const frame = () => new Promise(r => { requestAnimationFrame(() => r()); setTimeout(r, 100); });
       el.scrollIntoView({ block: 'center' });
+      let last = rect();
+      let since = Date.now();
+      for (const end = Date.now() + 5000; Date.now() < end && Date.now() - since < 300;) {
+        await frame();
+        const now = rect();
+        if (now !== last) {
+          el.scrollIntoView({ block: 'center' });
+          last = rect();
+          since = Date.now();
+        }
+      }
       const r = el.getBoundingClientRect();
       return { x: r.left + Math.min(r.width / 2, 40), y: r.top + r.height / 2 };
     }, sel);
@@ -960,6 +992,27 @@ async function until(fn, timeout = 3000) {
       (await pickerNow()).name !== 'My cat found a box');
     await page.keyboard.press('Escape');
     ok('Esc leaves, saving nothing', !(await pickerNow()) && (await picked()).length === 0);
+    /* The page's own scripts can make up input; none of it may pick. */
+    await startPicker();
+    await until(async () => !!(await pickerNow()));
+    await page.evaluate(() => {
+      const el = document.querySelector('#t3_sub > [slot="title"]');
+      const r = el.getBoundingClientRect();
+      const at = { bubbles: true, cancelable: true, composed: true, clientX: r.left + 5, clientY: r.top + 5 };
+      el.dispatchEvent(new MouseEvent('mousemove', at));
+      el.dispatchEvent(new PointerEvent('pointerdown', Object.assign({ pointerType: 'mouse' }, at)));
+      el.dispatchEvent(new MouseEvent('mousedown', at));
+      el.dispatchEvent(new MouseEvent('mouseup', at));
+      el.dispatchEvent(new MouseEvent('click', at));
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      const hide = document.querySelector('.bfx-picker-root [data-act="hide"]');
+      if (hide) hide.click();
+    });
+    await sleep(200);
+    pk = await pickerNow();
+    ok('input the page makes up picks nothing: a move and a click, Enter, or Hide on the bar',
+      !!pk && pk.box.right <= 0 && (await picked()).length === 0, JSON.stringify({ pk, picked: await picked() }));
+    await page.keyboard.press('Escape');
     await startPicker();
     await until(async () => !!(await pickerNow()));
     await page.mouse.move(spot.x, spot.y + 1);
