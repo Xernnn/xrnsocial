@@ -422,8 +422,13 @@ async function until(fn, timeout = 3000) {
     await popup.keyboard.press('Enter');
     await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.keywords.terms.length === 2)'));
     ok('after that the switch is left as it was set', await sw.evaluate('self.BFX_STORE.get().then(s => !s.keywords.enabled)'));
-    await popup.click('#words .chip-x');
-    await popup.click('#words .chip-x');
+    /* Found and clicked in one go: every change draws the list again a
+     * moment later, once the tab's counts are back, and a chip found first
+     * and clicked after could be one that was just replaced. */
+    const removeWord = () => popup.evaluate(() => document.querySelector('#words .chip-x').click());
+    await removeWord();
+    await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.keywords.terms.length === 1)'));
+    await removeWord();
     ok('a word can be removed', await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.keywords.terms.length === 0)')));
 
     await setState(`s => { s.sites.facebook.custom.push({ id: 'p1', selector: '#nothing', label: 'A picked thing', scope: 'all', path: '/groups/', enabled: true, createdAt: 1 }); }`);
