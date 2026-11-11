@@ -294,13 +294,15 @@
     };
   }
 
+  /* A selector is kept trimmed: one with a space at the end hid what was
+   * inside the element instead of the element (engine.js, boosted()). */
   function cleanRules(list) {
     return (Array.isArray(list) ? list : []).filter(function (r) {
       return r && validSelector(r.selector);
     }).map(function (r) {
       return {
         id: typeof r.id === 'string' && r.id ? r.id : newId(),
-        selector: r.selector,
+        selector: r.selector.trim(),
         label: typeof r.label === 'string' ? r.label : '',
         scope: r.scope === 'path' ? 'path' : 'all',
         path: typeof r.path === 'string' ? r.path : '/',

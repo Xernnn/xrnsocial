@@ -66,8 +66,11 @@
   var BOOST = ':not(#bfx-z)';
   var BOOST2 = BOOST + ':not(#bfx-y)';
 
-  /* A selector with a top-level comma is a list: boost the whole list. */
+  /* A selector with a top-level comma is a list: boost the whole list. One
+   * with a space at the end (a picked rule from an older import) would boost
+   * as "x :not(#bfx-z)", everything inside x; it is trimmed first. */
   function boosted(sel) {
+    sel = sel.trim();
     var depth = 0;
     var quote = '';
     for (var i = 0; i < sel.length; i++) {

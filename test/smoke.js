@@ -628,6 +628,14 @@ const cleanedFb = cleaned.sites.facebook;
 ok('non-boolean switches are ignored', cleanedFb.presets.stories === undefined && cleanedFb.presets.feed === true);
 ok('picked rules with invalid selectors are dropped', cleanedFb.custom.length === 1 && cleanedFb.custom[0].scope === 'all');
 ok('words are cleaned', JSON.stringify(cleaned.keywords) === JSON.stringify({ enabled: false, terms: ['ok'] }));
+/* A space at the end of a picked selector made its rule "x :not(#bfx-z)":
+ * everything inside x, not x. */
+const spaced = BFX_STORE.fromBackup({ sites: { facebook: { custom: [{ selector: ' [aria-label="Marketplace"]\n' }] } } });
+ok('a picked rule\'s selector is trimmed on import', spaced.sites.facebook.custom[0].selector === '[aria-label="Marketplace"]',
+  JSON.stringify(spaced.sites.facebook.custom[0].selector));
+BFX_ENGINE.apply(BFX_STORE.merge({ sites: { facebook: { custom: [{ id: 'sp', selector: '[aria-label="Marketplace"] ', enabled: true, scope: 'all' }] } } }));
+ok('…and one stored with the space still hides the thing itself, not what is inside it',
+  backgrounds.get(window).sheets.join('\n') === '[aria-label="Marketplace"]:not(#bfx-z){display:none !important}', backgrounds.get(window).sheets.join('\n'));
 
 /* ------------------------------------------------------------ picker -- */
 console.log('\npicker selector generation');
