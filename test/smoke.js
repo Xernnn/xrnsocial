@@ -992,6 +992,9 @@ console.log('\nlinkedin.com as of October 2026 (test/fixtures/linkedin.html)');
     'got ' + late.getAttribute('data-bfx-hidden-by'));
   late.remove();
   ok('the label is matched in other languages too', by('item-ad-de') === 'promoted', 'got ' + by('item-ad-de'));
+  /* Every line of the header was read, the name and the headline too. */
+  ok('a page called "AD" is not an ad', shown('item-name-ad'), 'hidden by ' + by('item-name-ad'));
+  ok('nor is a member whose headline is "Reklam"', shown('item-headline-ad'), 'hidden by ' + by('item-headline-ad'));
   ok('a promoted card in the right column goes as its block', by('right-promo') === 'promoted' && shown('right-news'));
   ok('Premium in the left column goes as its block, the profile card stays', by('left-premium') === 'premiumUpsell' && shown('left-profile') && shown('left-stats'));
   ok('the unread badges go, and the tab title count', by('badge-msg') === 'badges' && by('badge-notif') === 'badges' && w.document.title === 'Feed | LinkedIn');

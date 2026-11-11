@@ -632,6 +632,8 @@ async function until(fn, timeout = 3000) {
       await until(() => liGone('item-ad')) && await liGone('item-ad-de') && await liGone('item-ad-link'));
     ok('Premium goes in the feed, the left column and the top bar', await liGone('item-premium') && await liGone('left-premium') && await liGone('nav-premium'));
     ok('ordinary posts and the rest of the left column stay', !(await liGone('item-plain')) && !(await liGone('left-profile')) && !(await liGone('item-suggested')));
+    ok('a page called "AD", and a member whose headline is "Reklam", keep their posts',
+      !(await liGone('item-name-ad')) && !(await liGone('item-headline-ad')));
     ok('the unread badges go', await liGone('badge-msg') && await liGone('badge-notif'));
 
     const liOnly = list => setState(`s => { const p = s.sites.linkedin.presets; ${JSON.stringify(liIds)}.forEach(k => { p[k] = false; }); ${list.map(id => `p.${id} = true;`).join(' ')} }`);

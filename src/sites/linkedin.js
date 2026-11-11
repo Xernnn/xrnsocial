@@ -225,10 +225,18 @@
   }
 
   var HEURISTICS = {
+    /* The header's lines are its paragraphs: the author's name, then mostly
+     * a headline or a follower count, then the time, and an ad prints its
+     * label where the time would be. So only that last line is read, and
+     * never the first, which is the name: reading every line hid all posts
+     * of a page called "AD", or of a member whose headline is "Reklam". */
     promoted: function (unit, rule, ctx, api) {
       var header = headerOf(unit);
       if (!header) return false;
-      var leaves = header.querySelectorAll('span, p');
+      var lines = Array.prototype.filter.call(header.querySelectorAll('p'), function (p) { return !p.closest('button'); });
+      if (lines.length < 2) return false;
+      var last = lines[lines.length - 1];
+      var leaves = [last].concat(Array.prototype.slice.call(last.querySelectorAll('span, p')));
       for (var i = 0; i < leaves.length; i++) {
         if (leaves[i].children.length) continue;
         var t = (leaves[i].textContent || '').trim();
