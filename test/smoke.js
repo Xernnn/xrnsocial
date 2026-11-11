@@ -1035,6 +1035,21 @@ console.log('\nx.com as of October 2026 (test/fixtures/x.html)');
   lists.BFX_ENGINE.apply(lists.BFX_STORE.merge(null));
   await frame();
   ok('user cells on a following list are the content, not suggestions', !lists.document.getElementById('cell-wtf-user').hasAttribute('data-bfx-hidden-by'));
+  /* Other pages that are lists of accounts showed empty. */
+  const cellOn = async url => {
+    const page = boot(html, url);
+    page.BFX_ENGINE.apply(page.BFX_STORE.merge(null));
+    await frame();
+    return page.document.getElementById('cell-wtf-user').getAttribute('data-bfx-hidden-by');
+  };
+  const listUrls = ['/alice/status/111/retweets', '/alice/status/111/likes', '/alice/status/111/quotes',
+    '/hashtag/cats?f=user', '/search?q=cats&f=user', '/acme/affiliates'];
+  const emptied = [];
+  for (const u of listUrls) if (await cellOn('https://x.com' + u)) emptied.push(u);
+  ok('…nor on who reposted, liked or quoted a post, a hashtag\'s or a search\'s People tab, or an organisation\'s affiliates',
+    !emptied.length, emptied.join(' '));
+  ok('…while a hashtag\'s posts and a profile\'s likes still lose the suggestions',
+    await cellOn('https://x.com/hashtag/cats') === 'whoToFollow' && await cellOn('https://x.com/alice/likes') === 'whoToFollow');
 }
 
 /* ----------------------------------------------- linkedin.com, October 2026 -- */
