@@ -174,6 +174,7 @@ async function until(fn, timeout = 3000) {
     ok('Stories (off by default) are visible', !(await isHidden('stories')));
 
     ok('a link that merely starts with a word joiner is not an ad', !(await isHidden('u-pasted')));
+    ok('a Page whose name starts with "Sponsored" keeps its posts', !(await isHidden('u-page-en')) && await isHidden('u-ad-aria'));
     ok('Marketplace ad tiles go, one card each', await until(() => isHidden('mp-ad')) && await isHidden('mp-ad2') &&
       !(await isHidden('mp-1')) && !(await isHidden('mp-2')) && !(await isHidden('mp-grid')));
     await page.evaluate(() => { document.getElementById('u-ad').className = 'x1n2onr6 x1ja2u2z'; });
@@ -193,6 +194,25 @@ async function until(fn, timeout = 3000) {
         '<h4><a role="link" href="/x">Late Page</a><div role="button"><span>Follow</span></div></h4>Filled in';
     });
     ok('an empty shell is judged once it is filled', await until(() => isHidden('u-shell')));
+
+    /* A tab in the background gets no animation frames, and that is where a
+     * count in its title is read. The page keeps changing as the tab goes
+     * behind, as a feed does, so a scan is already asked for at that moment. */
+    await page.evaluate(() => {
+      self.__busy = setInterval(() => document.body.appendChild(document.createElement('i')).remove(), 1);
+    });
+    const front = await browser.newPage();
+    await front.bringToFront();
+    await until(() => page.evaluate(() => document.hidden));
+    await sleep(100);
+    await page.evaluate(() => { document.title = '(5) Facebook'; });
+    ok('a count that reaches the title while the tab is in the background is stripped there',
+      await until(() => page.evaluate(() => document.hidden && document.title === 'Facebook'), 5000),
+      await page.evaluate(() => document.visibilityState + ', ' + document.title));
+    await page.evaluate(() => clearInterval(self.__busy));
+    await page.bringToFront();
+    await front.close();
+    await until(() => page.evaluate(() => !document.hidden));
 
     /* --------------------------------------------------------- live update -- */
     console.log('\nsettings changes reach open tabs');
