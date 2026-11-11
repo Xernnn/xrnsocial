@@ -472,6 +472,46 @@ console.log('\nwhat the page can read');
   ok('and so does pausing', backgrounds.get(w).sheets.length === 0, JSON.stringify(backgrounds.get(w).sheets));
 }
 
+/* A /regex/ word runs against every post inside the scan, which can't be
+ * interrupted: one like /(a+)+$/ froze the tab on a post with a long run of
+ * one letter, and /.*a.*zq/ took a second over a long post. */
+console.log('\na /regex/ word that could freeze the tab');
+{
+  const S = BFX_STORE;
+  const body = t => t.replace(/^\/|\/[a-z]*$/g, '');
+  const slow = ['/(a+)+$/', '/(a|aa)*b/', '/(\\w|\\d)+$/', '/(\\w+\\s?)*$/', '/(.*a){12}/', '/.*.*.*zq/', '/\\d+\\d*x/', '/.*o.*e.*zq/'];
+  const missed = slow.filter(t => !S.slowPattern(body(t)));
+  ok('nested repeats, repeated choices, and repeats that crowd each other are seen for what they are', !missed.length, missed.join(' '));
+  const fine = ['/give\\s?away/i', '/\\bcrypto\\b/i', '/crypto.*scam/', '/(?:crypto|nft)s?/i', '/\\d{3}-\\d{4}/', '/free\\s+money/', '/a+b+/', '/[^\\]]+x/'];
+  const refused = fine.filter(t => S.slowPattern(body(t)));
+  ok('ordinary patterns are not', !refused.length, refused.join(' '));
+  ok('one of them is kept as the plain word between its slashes, the rest as typed',
+    S.cleanTerm(' /(a+)+$/i ') === '(a+)+$' && S.cleanTerm('/give\\s?away/i') === '/give\\s?away/i' && S.cleanTerm(' crypto ') === 'crypto');
+  const imported = S.fromBackup({ keywords: { enabled: true, terms: ['/(a+)+$/', '/lake\\b/i'] } });
+  ok('…and so is one in an imported backup', JSON.stringify(imported.keywords.terms) === JSON.stringify(['(a+)+$', '/lake\\b/i']), JSON.stringify(imported.keywords.terms));
+
+  const w = boot(fs.readFileSync(path.join(__dirname, 'fixtures/feed.html'), 'utf8'));
+  const $$ = id => w.document.getElementById(id);
+  const timed = async terms => {
+    const t0 = Date.now();
+    w.BFX_ENGINE.apply(w.BFX_STORE.merge({ keywords: { enabled: true, terms: terms } }));
+    await frame();
+    return Date.now() - t0;
+  };
+  $$('u-organic').append(' ' + 'a'.repeat(28) + '!');
+  const took = await timed(['/(a+)+$/']);
+  ok(`one saved before is read as a plain word: the scan over a post it would hang on takes ${took} ms`,
+    took < 500 && !$$('u-organic').hasAttribute('data-bfx-hidden-by'));
+  const story = 'the quick brown fox jumps over a lazy dog and then some more words appear in this post. ';
+  $$('u-video').append(story.repeat(70) + 'zebra');
+  const long = await timed(['/.*a.*zq/']);
+  ok(`a pattern reads only the start of a long post: ${long} ms over ${$$('u-video').textContent.length} characters`, long < 300);
+  await timed(['zebra']);
+  ok('…while a plain word still reads all of it', $$('u-video').getAttribute('data-bfx-hidden-by') === 'keyword');
+  await timed(['/zebra/']);
+  ok('…and the pattern doesn\'t, past its first thousand characters', !$$('u-video').hasAttribute('data-bfx-hidden-by'));
+}
+
 /* The background page's side of it: each sheet goes in as a user style, the
  * kind a page cannot outrank or read, into the document that asked for it. */
 console.log('\nthe background page');

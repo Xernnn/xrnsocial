@@ -430,6 +430,14 @@ async function until(fn, timeout = 3000) {
     await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.keywords.terms.length === 1)'));
     await removeWord();
     ok('a word can be removed', await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.keywords.terms.length === 0)')));
+    await popup.type('#wordInput', '/(a+)+$/');
+    await popup.keyboard.press('Enter');
+    ok('a pattern that could freeze the page goes in as a plain word, and the popup says so', await until(async () =>
+      (await sw.evaluate('self.BFX_STORE.get().then(s => JSON.stringify(s.keywords.terms))')) === '["(a+)+$"]' &&
+      /plain word: \(a\+\)\+\$/.test(await popup.$eval('#kwHint', n => n.textContent))));
+    await removeWord();
+    await until(() => sw.evaluate('self.BFX_STORE.get().then(s => s.keywords.terms.length === 0)'));
+    await setState(`s => { s.keywords.enabled = false; }`);
 
     await setState(`s => { s.sites.facebook.custom.push({ id: 'p1', selector: '#nothing', label: 'A picked thing', scope: 'all', path: '/groups/', enabled: true, createdAt: 1 }); }`);
     await popup.click('.tab[data-view="picked"]');

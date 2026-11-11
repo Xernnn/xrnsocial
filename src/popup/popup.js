@@ -26,6 +26,7 @@ var el = {
   wordInput: document.getElementById('wordInput'),
   words: document.getElementById('words'),
   kwCount: document.getElementById('kwCount'),
+  kwHint: document.getElementById('kwHint'),
   custom: document.getElementById('custom'),
   placeholders: document.getElementById('placeholders'),
   placeholdersRow: document.getElementById('placeholdersRow'),
@@ -36,6 +37,8 @@ var el = {
   wordsPip: document.getElementById('wordsPip'),
   pickedPip: document.getElementById('pickedPip')
 };
+
+var KW_HINT = el.kwHint.textContent;
 
 var GROUP_ICONS = {
   'Ads': 'M3 11v2a1 1 0 0 0 1 1h3l9 5V5L7 10H4a1 1 0 0 0-1 1zM19 9a4 4 0 0 1 0 6',
@@ -428,12 +431,21 @@ function renderSites() {
 /* ---------------------------------------------------------------- words -- */
 
 /* The first word turns the list on: adding one and seeing nothing happen
- * would look broken. After that the switch is the person's. */
+ * would look broken. After that the switch is the person's. A /regex/ that
+ * could freeze the page is kept as the plain word between its slashes, and
+ * the note under the list says so for a while. */
 function addWords(text) {
-  var added = text.split('\n')
+  var typed = text.split('\n')
     .map(function (s) { return s.trim(); })
     .filter(Boolean);
+  var added = typed.map(store.cleanTerm);
   if (!added.length) return;
+  var plain = added.filter(function (t, i) { return t !== typed[i]; });
+  if (plain.length) {
+    clearTimeout(addWords.hintTimer);
+    el.kwHint.textContent = 'That pattern could freeze the page, so it was added as a plain word: ' + plain.join(', ');
+    addWords.hintTimer = setTimeout(function () { el.kwHint.textContent = KW_HINT; }, 8000);
+  }
   mutate(function (s) {
     var terms = s.keywords.terms || [];
     if (!terms.length) s.keywords.enabled = true;
