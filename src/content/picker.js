@@ -513,7 +513,13 @@
 
   /* ---------------------------------------------------------- events -- */
 
+  /* Only what the person does counts. The page's own scripts can make up
+   * events (a mousemove over the thing of its choosing, then a click or an
+   * Enter, or a click on Hide) and have a rule saved that the person never
+   * picked; the browser marks those untrusted. */
+
   function onMove(e) {
+    if (!e.isTrusted) return;
     var el = e.target;
     if (!el || el.nodeType !== 1 || (ui && ui.host.contains(el))) return;
     if (el !== hovered) {
@@ -525,7 +531,7 @@
   }
 
   function onKey(e) {
-    if (!active) return;
+    if (!active || !e.isTrusted) return;
     if (e.key === 'Escape') { stop(); }
     else if (e.key === 'ArrowUp') { grow(1); }
     else if (e.key === 'ArrowDown') { grow(-1); }
@@ -541,6 +547,11 @@
    * ever arrives here. A long press ends with no click at all. */
   function swallow(e) {
     if (ui && ui.host.contains(e.target)) return;
+    if (!e.isTrusted) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     if (e.type === 'pointerdown') {
       finger = e.pointerType === 'touch' || e.pointerType === 'pen';
       if (finger) useTouch();
@@ -564,7 +575,7 @@
   /* The page gets none of what happens on the bar. */
   function onBar(e) {
     e.stopPropagation();
-    if (e.type !== 'click') return;
+    if (e.type !== 'click' || !e.isTrusted) return;
     var button = e.target.closest('[data-act]');
     var act = button && !button.disabled ? button.getAttribute('data-act') : '';
     if (act === 'smaller' || act === 'bigger') {

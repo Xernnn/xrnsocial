@@ -991,6 +991,27 @@ async function until(fn, timeout = 3000) {
       (await pickerNow()).name !== 'My cat found a box');
     await page.keyboard.press('Escape');
     ok('Esc leaves, saving nothing', !(await pickerNow()) && (await picked()).length === 0);
+    /* The page's own scripts can make up input; none of it may pick. */
+    await startPicker();
+    await until(async () => !!(await pickerNow()));
+    await page.evaluate(() => {
+      const el = document.querySelector('#t3_sub > [slot="title"]');
+      const r = el.getBoundingClientRect();
+      const at = { bubbles: true, cancelable: true, composed: true, clientX: r.left + 5, clientY: r.top + 5 };
+      el.dispatchEvent(new MouseEvent('mousemove', at));
+      el.dispatchEvent(new PointerEvent('pointerdown', Object.assign({ pointerType: 'mouse' }, at)));
+      el.dispatchEvent(new MouseEvent('mousedown', at));
+      el.dispatchEvent(new MouseEvent('mouseup', at));
+      el.dispatchEvent(new MouseEvent('click', at));
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      const hide = document.querySelector('.bfx-picker-root [data-act="hide"]');
+      if (hide) hide.click();
+    });
+    await sleep(200);
+    pk = await pickerNow();
+    ok('input the page makes up picks nothing: a move and a click, Enter, or Hide on the bar',
+      !!pk && pk.box.right <= 0 && (await picked()).length === 0, JSON.stringify({ pk, picked: await picked() }));
+    await page.keyboard.press('Escape');
     await startPicker();
     await until(async () => !!(await pickerNow()));
     await page.mouse.move(spot.x, spot.y + 1);

@@ -231,6 +231,16 @@ ok('each selector is its own rule', css.split('\n').length > BFX_PRESETS.length)
 
 const frame = () => new Promise(r => setTimeout(r, 60));
 
+/* An event as the person's own input arrives: trusted. dispatchEvent() is
+ * what a page's script can do, and jsdom marks it untrusted, as browsers
+ * do; this goes through jsdom's own dispatch with the mark set. */
+const jsdomUtils = require('jsdom/lib/jsdom/living/generated/utils.js');
+function userEvent(target, event) {
+  const impl = jsdomUtils.implForWrapper(event);
+  impl.isTrusted = true;
+  return jsdomUtils.implForWrapper(target)._dispatch(impl);
+}
+
 (async function main() {
 /* -------------------------------------------------------- heuristics -- */
 console.log('\nheuristics');
@@ -799,8 +809,12 @@ console.log('\nfacebook.com as of October 2026 (test/fixtures/feed.html)');
   autoplay();
   ok('a video that starts by itself is paused', pauses === 1, pauses + ' pauses');
   video.dispatchEvent(new w.MouseEvent('pointerdown', { bubbles: true }));
+  video.dispatchEvent(new w.KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }));
   autoplay();
-  ok('one started by a click plays on', pauses === 1, pauses + ' pauses');
+  ok('a press the page made up first is no click: still paused', pauses === 2, pauses + ' pauses');
+  userEvent(video, new w.MouseEvent('pointerdown', { bubbles: true }));
+  autoplay();
+  ok('one started by a click plays on', pauses === 2, pauses + ' pauses');
   w.BFX_ENGINE.apply(S.merge({ presets: { noAutoplay: false } }));
   pauses = 0;
   await new Promise(r => setTimeout(r, 1600));
@@ -909,7 +923,7 @@ console.log('\nreddit.com as of October 2026 (test/fixtures/reddit.html)');
   await frame();
   shadowVideo.dispatchEvent(new w.Event('play'));
   ok('a video inside the player\'s shadow root that starts by itself is paused', paused === 1, paused + ' pauses');
-  shadowVideo.dispatchEvent(new w.MouseEvent('pointerdown', { bubbles: true, composed: true }));
+  userEvent(shadowVideo, new w.MouseEvent('pointerdown', { bubbles: true, composed: true }));
   shadowVideo.dispatchEvent(new w.Event('play'));
   ok('…and one started by a click plays on', paused === 1, paused + ' pauses');
   w.BFX_ENGINE.apply(reddit({ noAutoplay: false }));

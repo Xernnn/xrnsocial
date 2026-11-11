@@ -386,7 +386,10 @@
   var GESTURE_MS = 1500;
   var lastGesture = 0;
 
+  /* Only the person's own: a page that makes up a pointerdown before it
+   * starts a video would get its autoplay past the switch. */
   function noteGesture(e) {
+    if (!e.isTrusted) return;
     if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
     lastGesture = Date.now();
   }
