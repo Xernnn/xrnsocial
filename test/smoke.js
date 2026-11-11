@@ -693,6 +693,13 @@ ok('hostnames map to their site', BFX_SITES.forHost('www.facebook.com') === 'fac
   BFX_SITES.forHost('mobile.twitter.com') === 'x' && BFX_SITES.forHost('www.twitch.tv') === 'twitch');
 ok('lookalike hosts do not', BFX_SITES.forHost('notfacebook.com') === null && BFX_SITES.forHost('example.com') === null &&
   BFX_SITES.forUrl('chrome://extensions/') === null);
+/* Facebook's other subdomains are other apps (Ads Manager, Business Suite,
+ * the developer pages), whose cards say "Ad" and "Sponsored" too. */
+const fbHosts = ['facebook.com', 'www.facebook.com', 'web.facebook.com', 'm.facebook.com', 'messenger.com', 'www.messenger.com'];
+const notFb = ['adsmanager.facebook.com', 'business.facebook.com', 'developers.facebook.com', 'l.facebook.com'];
+ok('the Facebook rules run on Facebook and Messenger, and on none of Facebook\'s other apps',
+  fbHosts.every(h => BFX_SITES.forHost(h) === 'facebook') && notFb.every(h => BFX_SITES.forHost(h) === null),
+  fbHosts.concat(notFb).map(h => h + '=' + BFX_SITES.forHost(h)).join(' '));
 const old = BFX_STORE.merge({ enabled: true, presets: { stories: true, sponsored: false }, custom: [{ id: 'o1', selector: '#x', scope: 'all' }] });
 ok('settings from before other sites move to Facebook',
   old.sites.facebook.presets.stories === true && old.sites.facebook.presets.sponsored === false &&
