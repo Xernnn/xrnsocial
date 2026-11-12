@@ -27,10 +27,13 @@ jobs:
         run: npm test
 
       # The runner's own Chrome is branded Chrome, which ignores unpacked
-      # extensions, so the browsers go where the tests look for them (README, Tests).
+      # extensions, so both browsers come from the README's commands. Chrome is
+      # then named with CHROME_PATH: @puppeteer/browsers 3 installs it under
+      # chrome/linux-<version>/, and test/browser.js only looks in linux64-*.
       - name: Chrome for Testing and Firefox
         run: |
-          npx @puppeteer/browsers install chrome@stable --path ~/.cache/puppeteer
+          chrome=$(npx @puppeteer/browsers install chrome@stable --path ~/.cache/puppeteer --format '{{path}}')
+          echo "CHROME_PATH=$chrome" >> "$GITHUB_ENV"
           npx @puppeteer/browsers install firefox@stable --path ~/.cache/bfx-firefox
 
       - name: Browser tests (Chrome)
