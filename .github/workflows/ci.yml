@@ -36,6 +36,12 @@ jobs:
           echo "CHROME_PATH=$chrome" >> "$GITHUB_ENV"
           npx @puppeteer/browsers install firefox@stable --path ~/.cache/bfx-firefox
 
+      # The runner's AppArmor blocks the unprivileged user namespaces Chrome's
+      # sandbox is built on ("No usable sandbox!"). Lifting that keeps the
+      # sandbox on, rather than running the tests with --no-sandbox.
+      - name: Allow Chrome's sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
       - name: Browser tests (Chrome)
         run: npm run test:browser
 
