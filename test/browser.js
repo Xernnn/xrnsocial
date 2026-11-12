@@ -34,7 +34,7 @@ function findChrome() {
   const caches = [
     [path.join(os.homedir(), '.cache/ms-playwright'), /^chromium-\d+$/, 'chrome-linux64/chrome'],
     [path.join(os.homedir(), '.cache/ms-playwright'), /^chromium-\d+$/, 'chrome-linux/chrome'],
-    [path.join(os.homedir(), '.cache/puppeteer/chrome'), /^linux64-/, 'chrome-linux64/chrome']
+    [path.join(os.homedir(), '.cache/puppeteer/chrome'), /^linux(64)?-/, 'chrome-linux64/chrome']
   ];
   for (const [dir, pattern, exe] of caches) {
     if (!fs.existsSync(dir)) continue;

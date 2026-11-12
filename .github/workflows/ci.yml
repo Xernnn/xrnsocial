@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Read-only: CI checks code and needs to change nothing on the repository.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          # The oldest Node package.json's engines promises (>=22.12).
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Smoke tests (jsdom)
+        run: npm test
+
+      # The runner's own Chrome is branded Chrome, which ignores unpacked
+      # extensions, so both browsers come from the README's commands.
+      - name: Chrome for Testing and Firefox
+        run: |
+          npx @puppeteer/browsers install chrome@stable --path ~/.cache/puppeteer
+          npx @puppeteer/browsers install firefox@stable --path ~/.cache/bfx-firefox
+
+      # The runner's AppArmor blocks the unprivileged user namespaces Chrome's
+      # sandbox is built on ("No usable sandbox!"). Lifting that keeps the
+      # sandbox on, rather than running the tests with --no-sandbox.
+      - name: Allow Chrome's sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Browser tests (Chrome)
+        run: npm run test:browser
+
+      - name: Browser tests (Firefox)
+        run: npm run test:firefox
