@@ -1,6 +1,6 @@
 {
   "name": "xrnsoc",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "private": true,
   "description": "Chrome extension that switches off the distracting parts of Facebook, Reddit, X, LinkedIn, Instagram, TikTok, Twitch, pixiv and MangaDex.",
   "scripts": {
