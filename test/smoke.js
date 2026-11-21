@@ -1782,6 +1782,41 @@ console.log('\nmangadex.org as of November 2026 (test/fixtures/mangadex.html)');
   ok('a home row means that title too, never its place in the list → ' + row.author, row.author === 'Harbour Lights' && rows.join() === 'hrow-1', rows.join());
 }
 
+console.log('\ncolours');
+{
+  const read = f => fs.readFileSync(path.join(root, f), 'utf8');
+  const lum = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map(c => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)))
+    .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+  const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+  const tile = read('icons/icon-16.svg').match(/<rect [^>]*fill="(#[0-9A-Fa-f]{6})"/)[1].toLowerCase();
+  const popup = read('src/popup/popup.css');
+  const [light, dark] = popup.split('@media (prefers-color-scheme: dark)');
+  const token = (css, name) => (css.match(new RegExp('--' + name + ':\\s*(#[0-9a-fA-F]{6})')) || [])[1];
+  ok('the popup\'s pink is the icon\'s', token(light, 'accent') === tile, token(light, 'accent') + ' vs ' + tile);
+  // Every rule that puts white text on a colour, in the popup, the options page and the picker.
+  const whiteOn = [];
+  for (const file of ['src/popup/popup.css', 'src/options/options.css', 'src/content/content.css']) {
+    const css = read(file).replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const [, sel, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (!/(^|;)\s*color:\s*#fff(fff)?\s*(;|$)/.test(body)) continue;
+      const bg = (body.match(/background:\s*(#[0-9a-fA-F]{6}|var\(--[\w-]+\))/) || [])[1];
+      if (!bg) continue;
+      const hex = bg.startsWith('var(') ? token(css, bg.slice(6, -1)) : bg;
+      if (hex) whiteOn.push([file + ' ' + sel.trim(), hex.toLowerCase()]);
+    }
+  }
+  ok('white text sits on a pink in the popup, the options page and the picker', whiteOn.length >= 6, whiteOn.length);
+  for (const [where, hex] of whiteOn) ok('white text on ' + where + ' reaches 4.5:1', contrast('#ffffff', hex) >= 4.5, hex + ' ' + contrast('#ffffff', hex).toFixed(2));
+  for (const [scheme, css, base] of [['light', light, light], ['dark', dark, light]]) {
+    const text = token(css, 'accent-text');
+    for (const surface of ['bg', 'surface']) {
+      const behind = token(css, surface) || token(base, surface);
+      ok('pink text reaches 4.5:1 on the ' + scheme + ' --' + surface, contrast(text, behind) >= 4.5, text + ' on ' + behind + ' ' + contrast(text, behind).toFixed(2));
+    }
+  }
+}
+
 report();
 function report() {
   console.log('\n' + (failures ? failures + ' of ' + checks + ' checks FAILED' : checks + ' checks passed'));

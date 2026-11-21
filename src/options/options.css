@@ -5,7 +5,7 @@
   --line: #e4e6eb;
   --text: #1c1e21;
   --dim: #65676b;
-  --accent: #d6336c;
+  --accent: #d1028d;  /* the icon's pink (#fb40b0) a step deeper, so the white on it reaches 4.5:1 */
   --danger: #e04b4b;
   --ok: #2e7d32;
   --font: "MiSans Latin VF", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;

@@ -111,7 +111,8 @@
 }
 .bfx-btn[hidden] { display: none; }
 .bfx-btn:disabled { opacity: .4; }
-.bfx-btn-hide { flex-grow: 2; background: #d6336c; color: #fff; }
+/* The icon's pink (#fb40b0) a step deeper, so the white on it reaches 4.5:1. */
+.bfx-btn-hide { flex-grow: 2; background: #d1028d; color: #fff; }
 
 .bfx-toast {
   position: fixed;
